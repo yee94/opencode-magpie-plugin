@@ -26,12 +26,20 @@ export type MagpieModel = {
 
 export type Inventory = { info: ProviderInfo; models: ModelInfo2[] }[];
 
-/** Whether any model Magpie lists has no price in any source, which asks for a fresher catalog. */
-export const hasUnpricedModel = (inventory: Inventory): boolean =>
-  inventory.some((entry) => entry.models.some((model) => model.cost.length === 0));
-
 /** Routing groups route across providers, so they belong to Magpie itself rather than to a vendor. */
 const ROUTING_GROUP = 'magpie';
+
+/**
+ * Whether any model Magpie lists has no price in any source, which asks for a fresher catalog.
+ * Routing groups are left out: Magpie only prices a group whose members all cost the same, so an
+ * unpriced group says nothing about catalog freshness and would otherwise refetch on every refresh.
+ */
+export const hasUnpricedModel = (inventory: Inventory): boolean =>
+  inventory.some(
+    (entry) =>
+      entry.info.id !== `magpie-${ROUTING_GROUP}` &&
+      entry.models.some((model) => model.cost.length === 0),
+  );
 
 const reasoningVariants = (row: MagpieModel, anthropic: boolean): ModelInfo2['variants'] => {
   if (row.reasoning === false) return [];
@@ -97,6 +105,17 @@ const modelCost = (
   return { cost: undefined, source: 'none' };
 };
 
+/**
+ * Whether an unpriced model still belongs in the catalog.
+ *
+ * A routing group's price is unknown whenever its members don't all cost the same: Magpie prices
+ * a group only when every member agrees, so any group that mixes a cheap model with a strong one
+ * has no price at all. Hiding those is the worst case — they are exactly the groups an
+ * intent-routing setup creates. Keep them listed and marked, so the model stays selectable and
+ * only the running cost readout is imprecise.
+ */
+const keepsUnpriced = (group: boolean): boolean => group;
+
 export const buildInventory = (
   rows: MagpieModel[],
   baseURL: string,
@@ -124,8 +143,10 @@ export const buildInventory = (
         modalities: row.modalities,
         tool_call: true,
       });
-      // An unknown price must not silently look like a free model.
-      model.enabled = !!cost;
+      // An unknown price must not silently look like a free model. Routing groups are the
+      // exception: Magpie leaves a group unpriced whenever its members differ in price, so an
+      // unpriced group is the normal case, not a discovery failure — keep it selectable.
+      model.enabled = !!cost || keepsUnpriced(group);
       if (!cost) model.name += ' (价格未知)';
       const anthropic = row.native_endpoints?.includes('/v1/messages');
       const responses = !anthropic && row.native_endpoints?.includes('/v1/responses');

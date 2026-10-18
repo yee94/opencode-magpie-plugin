@@ -27,7 +27,7 @@ OpenCode V2
 - 启动时发现目录，每 30 秒刷新；服务新增、模型下线都能反映到 OpenCode。
 - Provider 显示 Magpie 中的分组名称，而不是统一挤在一个 “Magpie” 下；路由分组统一归入 Magpie。
 - 内置独立价格表和模型名归一化逻辑，支持输入、输出、缓存读取与写入价格。
-- Magpie 已安装但未运行时自动执行 `magpie serve`；未安装时给出安装链接。
+- Magpie 已安装但未运行时自动把它拉起来（macOS 上启动的是 Magpie app，而不是无窗口的 `magpie serve`，所以 Magpie 的路由页照常可用）；未安装时给出安装链接。
 - 登录和服务凭据由 Magpie 管理，插件不需要复制上游 token。
 
 这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过本机 Magpie 网关**。
@@ -122,7 +122,7 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 
 `0.0.0.0`、`::` 监听地址会转换为本机访问地址。本版本面向本机网关，不支持远程服务器地址。共享服务模式下，在终端临时设置变量不一定会改变已经启动的 OpenCode 服务环境。
 
-网关不在线时，插件在 PATH、`~/.local/bin`、常见 Homebrew 路径以及 macOS 的 `Magpie.app` 中寻找可执行文件，并后台启动 `magpie serve`。Windows 通过 PATH / `~/.local/bin` 寻找 `magpie.exe`。如果无法找到，请安装 Magpie 或把它加入 OpenCode 服务的 PATH。
+网关不在线时，插件在 PATH、`~/.local/bin`、常见 Homebrew 路径以及 macOS 的 `Magpie.app` 中寻找可执行文件并把它拉起来。找到的是 `Magpie.app` 里的可执行文件（`~/.local/bin/magpie` 是它的软链，会被解析到真实路径）时，macOS 上启动 `magpie tray`——Magpie app 本身，它同样提供网关，但带窗口，路由页可以查看；其他情况才启动无窗口的 `magpie serve`。Windows 通过 PATH / `~/.local/bin` 寻找 `magpie.exe`。如果无法找到，请安装 Magpie 或把它加入 OpenCode 服务的 PATH。
 
 启动后会等待网关就绪；请求前和目录刷新时也会检查网关。插件卸载不会关闭已启动的共享网关。若端口被其他服务占用，会报错而不是向其发送模型请求。
 
@@ -139,7 +139,7 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 1. 内置价格表，优先应用已识别 provider 的专属覆盖。
 2. 内置表未覆盖时，使用 Magpie 返回的 `magpie_price`。
 3. 普通模型仍缺价时，查询 models.dev 本地缓存：优先同 provider 的精确 ID，再查已识别厂商（OpenAI、Anthropic、DeepSeek、Google、xAI）的精确 ID 或 `canonical_model_id`。不跨版本猜价、不采用其他转售商报价、不使用订阅 plan 目录的零价。
-4. 所有来源均没有价格时，不启用该模型，避免把未知价格显示为免费。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
+4. 所有来源均没有价格时，不启用该模型，避免把未知价格显示为免费。**路由组例外**：Magpie 只在组内全部成员同价时才给组报价，混价组（例如把便宜模型和强模型放在一起做意图路由）永远没有价格，因此这类组保持可选用，名字后面标注「价格未知」，只是费用读数不精确。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
 
 models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，目前只采用基础价，未接入阶梯价。
 

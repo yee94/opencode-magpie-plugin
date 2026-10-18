@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -58,7 +58,11 @@ export const findExecutable = async (): Promise<string | undefined> => {
         ),
     ),
   );
-  return found.find(Boolean);
+  const executable = found.find(Boolean);
+  if (!executable) return undefined;
+  // The installer links Magpie.app into ~/.local/bin, and a PATH entry wins over the bundle.
+  // Resolve the link so the caller can tell the app from a standalone CLI before starting it.
+  return await realpath(executable).catch(() => executable);
 };
 
 export const probeGateway = async (baseURL: string): Promise<boolean> => {
@@ -74,9 +78,26 @@ export const probeGateway = async (baseURL: string): Promise<boolean> => {
   return true;
 };
 
+/**
+ * How to bring the gateway up when nothing is listening.
+ *
+ * `magpie serve` runs the gateway with no window, and the window is what shows the Routing
+ * view. A windowless gateway that wins the port keeps Magpie's own app from starting one, so
+ * Magpie reports that routing can't be watched there. Starting the app instead — the same
+ * thing a user does by opening it — keeps the routing view available, and it serves the
+ * gateway just as well.
+ */
+export const startCommand = (executable: string): { mode: 'app' | 'serve'; args: string[] } => {
+  // The executable bundled inside Magpie.app is the app itself; anything else on PATH is the CLI.
+  const app = /[\\/]Magpie\.app[\\/]|[\\/]magpie\.app[\\/]/i.test(executable);
+  if (process.platform === 'darwin' && app) return { mode: 'app', args: ['tray'] };
+  return { mode: 'serve', args: ['serve'] };
+};
+
 const startGateway = async (executable: string): Promise<void> => {
+  const { args } = startCommand(executable);
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(executable, ['serve'], {
+    const child = spawn(executable, args, {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,

@@ -1,7 +1,12 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildInventory, type Inventory, type MagpieModel } from '../src/catalog.js';
+import {
+  buildInventory,
+  hasUnpricedModel,
+  type Inventory,
+  type MagpieModel,
+} from '../src/catalog.js';
 import { ensureGateway, fetchModels, probeGateway, resolveBaseURL } from '../src/gateway.js';
 import plugin from '../src/index.js';
 import { getRequiredModelPricing } from '../src/model-pricing.js';
@@ -112,6 +117,44 @@ describe('Magpie discovery', () => {
     expect(catalog[0].models).toHaveLength(1);
     expect(catalog[0].models[0].enabled).toBe(false);
     expect(catalog[0].models[0].cost).toEqual([]);
+  });
+
+  it('keeps an unpriced routing group selectable, since mixed-price groups are never priced', () => {
+    // Magpie prices a group only when every member costs the same, so a group that mixes a
+    // cheap model with a strong one has no price at all. Hiding it would hide exactly the
+    // groups an intent-routing setup creates, so it stays enabled and only the name says so.
+    const mixed = {
+      ...row('workbuddy', 'mixed'),
+      id: 'group/mixed',
+      display_name: 'Mixed',
+      owned_by: 'workbuddy',
+    };
+    const priced = {
+      ...row('astra', 'flat'),
+      id: 'group/flat',
+      display_name: 'Flat',
+      owned_by: 'astra',
+      magpie_price: { input: 1, output: 2 },
+    };
+    const catalog = buildInventory([mixed, priced], 'http://localhost:3425');
+    const magpie = catalog[0];
+    expect(magpie.info.id).toBe('magpie-magpie');
+    expect(magpie.models.map((model) => model.modelID)).toEqual(['group/mixed', 'group/flat']);
+    expect(magpie.models[0].enabled).toBe(true);
+    expect(magpie.models[0].cost).toEqual([]);
+    expect(magpie.models[0].name).toBe('Mixed (价格未知)');
+    expect(magpie.models[1].enabled).toBe(true);
+  });
+
+  it('does not let unpriced routing groups ask for a catalog refetch', () => {
+    // Groups are unpriced by nature, so counting them as "needs fresher prices" would refetch
+    // models.dev on every 30-second refresh.
+    const rows: MagpieModel[] = [
+      { ...row('workbuddy', 'mixed'), id: 'group/mixed', display_name: 'Mixed' },
+    ];
+    expect(hasUnpricedModel(buildInventory(rows, 'http://localhost:3425'))).toBe(false);
+    const unknown = buildInventory([row('cursor', 'unknown-model')], 'http://localhost:3425');
+    expect(hasUnpricedModel(unknown)).toBe(true);
   });
 
   it('probes identity and reads the gateway price extension', async () => {
