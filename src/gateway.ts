@@ -94,8 +94,20 @@ export const startCommand = (executable: string): { mode: 'app' | 'serve'; args:
   return { mode: 'serve', args: ['serve'] };
 };
 
-const startGateway = async (executable: string): Promise<void> => {
-  const { args } = startCommand(executable);
+/**
+ * The commands to try, in order, when nothing is listening.
+ *
+ * The app is preferred on macOS because only it has a window, and the window is what shows the
+ * Routing view. It needs a GUI session, though: a Mac reached over SSH or from a daemon has none,
+ * so `magpie tray` exits without serving. The windowless gateway has no such requirement, which
+ * is why it is the fallback rather than the only option.
+ */
+export const startAttempts = (executable: string): string[][] => {
+  const { mode, args } = startCommand(executable);
+  return mode === 'app' ? [args, ['serve']] : [args];
+};
+
+const startGateway = async (executable: string, args: string[]): Promise<void> => {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(executable, args, {
       detached: true,
@@ -110,6 +122,16 @@ const startGateway = async (executable: string): Promise<void> => {
   });
 };
 
+/** Polls until the gateway answers, or gives up after `tries` half-second waits. */
+const waitForGateway = async (baseURL: string, tries: number): Promise<boolean> => {
+  for (let remaining = tries; remaining >= 0; remaining -= 1) {
+    if (await probeGateway(baseURL)) return true;
+    if (remaining === 0) return false;
+    await delay(500);
+  }
+  return false;
+};
+
 const starting = new Map<string, Promise<void>>();
 
 export const ensureGateway = async (baseURL: string): Promise<void> => {
@@ -119,14 +141,11 @@ export const ensureGateway = async (baseURL: string): Promise<void> => {
   const task = (async () => {
     const executable = await findExecutable();
     if (!executable) throw new Error(INSTALL_MESSAGE);
-    await startGateway(executable);
-    const wait = async (remaining: number): Promise<void> => {
-      if (await probeGateway(baseURL)) return;
-      if (remaining === 0) throw new Error('Magpie 网关启动超时，请运行 magpie serve 查看错误。');
-      await delay(500);
-      return wait(remaining - 1);
-    };
-    await wait(30);
+    for (const args of startAttempts(executable)) {
+      await startGateway(executable, args);
+      if (await waitForGateway(baseURL, 30)) return;
+    }
+    throw new Error('Magpie 网关启动超时，请运行 magpie serve 查看错误。');
   })();
   starting.set(baseURL, task);
   try {

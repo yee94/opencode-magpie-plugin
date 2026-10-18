@@ -9,7 +9,7 @@ vi.mock('node:fs/promises', async (original) => ({
 }));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
 
-import { ensureGateway, INSTALL_MESSAGE, startCommand } from '../src/gateway.js';
+import { ensureGateway, INSTALL_MESSAGE, startAttempts, startCommand } from '../src/gateway.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -56,8 +56,6 @@ it('starts one detached gateway for concurrent callers and verifies readiness', 
 });
 
 it('opens the Magpie app, not a windowless gateway, when the executable is the bundled app', () => {
-  // A windowless `magpie serve` takes the port a window would use, which is what hides
-  // Magpie's Routing view. Starting from Magpie.app must therefore start the app.
   const original = process.platform;
   Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
   try {
@@ -68,6 +66,12 @@ it('opens the Magpie app, not a windowless gateway, when the executable is the b
     // The installer links the app into ~/.local/bin, so the symlink path must count as the app.
     expect(startCommand('/Users/me/.local/bin/magpie')).toEqual({ mode: 'serve', args: ['serve'] });
     expect(startCommand('/opt/homebrew/bin/magpie')).toEqual({ mode: 'serve', args: ['serve'] });
+    // The app needs a GUI session; a Mac reached over SSH has none, so `serve` is the fallback.
+    expect(startAttempts('/Applications/Magpie.app/Contents/MacOS/magpie')).toEqual([
+      ['tray'],
+      ['serve'],
+    ]);
+    expect(startAttempts('/opt/homebrew/bin/magpie')).toEqual([['serve']]);
   } finally {
     Object.defineProperty(process, 'platform', { value: original, configurable: true });
   }
