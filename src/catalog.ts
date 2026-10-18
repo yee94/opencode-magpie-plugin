@@ -106,13 +106,13 @@ const modelCost = (
 };
 
 /**
- * Whether an unpriced model still belongs in the catalog.
+ * Whether an unpriced model still belongs in the catalog, and whether its name should say so.
  *
- * A routing group's price is unknown whenever its members don't all cost the same: Magpie prices
- * a group only when every member agrees, so any group that mixes a cheap model with a strong one
- * has no price at all. Hiding those is the worst case — they are exactly the groups an
- * intent-routing setup creates. Keep them listed and marked, so the model stays selectable and
- * only the running cost readout is imprecise.
+ * A routing group has no single price by design: the group sends each turn to whichever member
+ * the routing picks, so its cost is a range rather than a number. Magpie reports a group price
+ * only when every member happens to agree, which a group built for intent routing never does.
+ * That is normal, not a discovery failure — the group is listed without the warning. Anything
+ * else without a price really is unpriced, and says so.
  */
 const keepsUnpriced = (group: boolean): boolean => group;
 
@@ -143,11 +143,11 @@ export const buildInventory = (
         modalities: row.modalities,
         tool_call: true,
       });
-      // An unknown price must not silently look like a free model. Routing groups are the
-      // exception: Magpie leaves a group unpriced whenever its members differ in price, so an
-      // unpriced group is the normal case, not a discovery failure — keep it selectable.
+      // An unknown price must not silently look like a free model: say so, and leave it out.
+      // A routing group is the exception — it is unpriced because its cost depends on which
+      // member answers each turn, so it stays selectable and keeps its own name.
       model.enabled = !!cost || keepsUnpriced(group);
-      if (!cost) model.name += ' (价格未知)';
+      if (!cost && !keepsUnpriced(group)) model.name += ' (价格未知)';
       const anthropic = row.native_endpoints?.includes('/v1/messages');
       const responses = !anthropic && row.native_endpoints?.includes('/v1/responses');
       model.package = anthropic

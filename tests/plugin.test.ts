@@ -117,12 +117,15 @@ describe('Magpie discovery', () => {
     expect(catalog[0].models).toHaveLength(1);
     expect(catalog[0].models[0].enabled).toBe(false);
     expect(catalog[0].models[0].cost).toEqual([]);
+    // A model with no price is not free: it stays out of the picker and says why.
+    expect(catalog[0].models[0].name).toBe('unknown-model (价格未知)');
   });
 
   it('keeps an unpriced routing group selectable, since mixed-price groups are never priced', () => {
-    // Magpie prices a group only when every member costs the same, so a group that mixes a
-    // cheap model with a strong one has no price at all. Hiding it would hide exactly the
-    // groups an intent-routing setup creates, so it stays enabled and only the name says so.
+    // A group sends each turn to whichever member the routing picks, so its cost is a range, not
+    // a number. Magpie reports a group price only when every member agrees, which an intent-routing
+    // group never does — that is normal, so the group keeps its own name and only the cost readout
+    // is imprecise. Anything else without a price really is unpriced and says so.
     const mixed = {
       ...row('workbuddy', 'mixed'),
       id: 'group/mixed',
@@ -142,7 +145,7 @@ describe('Magpie discovery', () => {
     expect(magpie.models.map((model) => model.modelID)).toEqual(['group/mixed', 'group/flat']);
     expect(magpie.models[0].enabled).toBe(true);
     expect(magpie.models[0].cost).toEqual([]);
-    expect(magpie.models[0].name).toBe('Mixed (价格未知)');
+    expect(magpie.models[0].name).toBe('Mixed');
     expect(magpie.models[1].enabled).toBe(true);
   });
 
