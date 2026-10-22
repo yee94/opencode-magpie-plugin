@@ -71,7 +71,7 @@ opencode service restart
 
 ### Provider 名称与模型 ID
 
-显示名与 Magpie 保持一致，内部 ID 则使用命名空间，避免覆盖另一个 Cursor / WorkBuddy 插件：
+显示名与 Magpie 保持一致，只去掉上下文窗口前的空格（`Claude Opus 5.5 @ 1m` 显示为 `Claude Opus 5.5 @1m`）。模型 ID 不变。内部 ID 使用命名空间，避免覆盖另一个 Cursor / WorkBuddy 插件：
 
 | OpenCode 中的显示名 | 内部 provider ID | 示例模型引用 | 发给 Magpie 的 model |
 | --- | --- | --- | --- |
