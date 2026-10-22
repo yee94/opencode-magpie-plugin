@@ -6,7 +6,7 @@
 
 **在 OpenCode V2 中动态使用 Magpie 的 Cursor、WorkBuddy 等服务，无需手写模型配置。**
 
-An OpenCode V2 plugin for the local [Magpie](https://usemagpie.ai/) gateway. It discovers providers and models, supplies built-in token pricing, and starts an installed gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
+An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gateways. It discovers providers and models, supplies built-in token pricing, and starts an installed local gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
 
 ## 它解决什么问题
 
@@ -18,7 +18,7 @@ OpenCode V2
   ├─ 模型能力、上下文限制、reasoning 档位和价格
   └─ 原生 Chat / Responses / Anthropic 请求
           ↓
-    本机 Magpie 网关
+    本机或远程 Magpie 网关
           ↓
     Cursor / WorkBuddy / 其他已配置服务
 ```
@@ -30,13 +30,13 @@ OpenCode V2
 - Magpie 已安装但未运行时自动启动；macOS 上找到 app 内的可执行文件时优先启动 app，保留路由页；未安装时给出安装链接。
 - 登录和服务凭据由 Magpie 管理，插件不需要复制上游 token。
 
-这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过本机 Magpie 网关**。
+这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过所配置的 Magpie 网关**。
 
 ## 前置条件
 
 1. 使用支持 `setup()`、`provider.transform` 和原生 provider runtime 的 **OpenCode V2**。不支持 V1。
-2. 从 [Magpie 官网](https://usemagpie.ai/zh/) 安装 Magpie，并在其中登录需要的服务、启用模型。
-3. 网关对本机可访问，默认地址 `http://127.0.0.1:3425`。
+2. 从 [Magpie 官网](https://usemagpie.ai/zh/) 安装 Magpie，并在其中登录需要的服务、启用模型；使用远程网关时，本机无需安装。
+3. 网关对 OpenCode 服务进程可访问。本机默认地址 `http://127.0.0.1:3425`；远程连接见下方配置。
 
 包的 Node.js 要求为 **22 或更高**。macOS 上已验证插件加载与 Cursor / WorkBuddy 目录注册；Windows 和 Linux 的实际网关联调尚未验证。
 
@@ -55,7 +55,7 @@ OpenCode V2
 
 ```jsonc
 {
-  "plugins": ["opencode-magpie-plugin@0.1.7"]
+  "plugins": ["opencode-magpie-plugin@0.3.0"]
 }
 ```
 
@@ -119,13 +119,13 @@ Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `o
 
 ## 自动发现与请求行为
 
-插件先检查网关根路径的 `name: "magpie"`，再请求 `/v1/models`。请求携带 `X-Magpie-Prices: 1` 读取可用的网关价格扩展。
+本机模式先检查网关根路径的 `name: "magpie"`，再请求 `/v1/models`。远程模式直接请求配置的 API baseURL 下的 `models`，不探测站点根路径，以兼容只暴露 API 的反向代理。请求携带 `X-Magpie-Prices: 1` 读取可用的网关价格扩展。
 
 目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。仅发现聊天目录；重复的无 provider 前缀别名、图片生成或其他非聊天专用模型不会注册为聊天模型。
 
 思考强度读取新版 `reasoning_levels`，并兼容已安装版本常见的 `supported_reasoning_levels`（`{ effort }` 对象或字符串列表）。只有网关实际声明的档位才会出现，可在 OpenCode 的模型变体控件中选择，或使用 `provider/model#high` 这样的引用。`default` 保留服务默认行为，不额外生成档位；网关未提供档位时不会凭模型名称猜测。
 
-支持 Fast 的模型会额外显示一个 `-fast` 模型，例如 `composer-2.5` / `composer-2.5-fast`，显示名为 `Composer 2.5` / `Composer 2.5 Fast`。选择 Fast 后仍向 Magpie 发送原模型 ID，同时附带 `service_tier: "priority"`，并保留原有思考档位。检测依据是 `/v1/models` 的 `service_tiers` 包含 `priority`；旧网关漏报时，补读本机 Magpie 配置目录的 `plugin-providers.json` 中 Cursor 的 `fast: true` 或插件的 `serviceTiers`。仅扩展网关当前列出的模型，已有同名 `-fast` 模型优先，刷新时同步增删。
+支持 Fast 的模型会额外显示一个 `-fast` 模型，例如 `composer-2.5` / `composer-2.5-fast`，显示名为 `Composer 2.5` / `Composer 2.5 Fast`。选择 Fast 后仍向 Magpie 发送原模型 ID，同时附带 `service_tier: "priority"`，并保留原有思考档位。检测依据是 `/v1/models` 的 `service_tiers` 包含 `priority`；本机模式在旧网关漏报时，补读本机 Magpie 配置目录的 `plugin-providers.json` 中 Cursor 的 `fast: true` 或插件的 `serviceTiers`。远程模式只采用远端模型目录的能力，不读取本机插件能力。仅扩展网关当前列出的模型，已有同名 `-fast` 模型优先，刷新时同步增删。
 
 Fast 模型优先采用内置表中明确登记的 Fast 费率及上下文档位；没有独立 Fast 费率时仍沿用原模型参考价，不代表 Fast 实际费率。缺少原模型报价时仍按未知价格处理。
 
@@ -147,7 +147,45 @@ Fast 模型优先采用内置表中明确登记的 Fast 费率及上下文档位
 
 ## 网关地址与启动
 
-地址优先级：
+### 远程网关与反向代理
+
+在插件 `options.remote` 中配置 **API baseURL** 和 **Magpie Gateway Key**：
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "opencode-magpie-plugin",
+      "options": {
+        "remote": {
+          "baseURL": "https://magpie.example.com/magpie/v1",
+          "token": "{env:MAGPIE_REMOTE_TOKEN}"
+        }
+      }
+    }
+  ]
+}
+```
+
+`token` 是远端 Magpie 的 **Gateway Key**（网关调用密钥），不是管理页面链接里的 `?k=` 登录密钥，也不是上游服务的 token。可直接填写密钥，或像示例一样由 OpenCode 从其服务进程环境变量展开。`remote` 可与 `groups`、`order` 同时配置。
+
+OpenCode V2 使用 `plugins` 数组中的 `{ "package": "…", "options": { … } }` 对象传入配置；`[packageName, options]` 是旧版 tuple 写法，V2 配置请使用上述对象形式。
+
+`baseURL` 必须包含实际使用的完整 API 前缀；插件只去掉末尾的 `/`，**不会补 `/v1`、截掉 path 或推测 rewrite 规则**：
+
+| 配置 | 请求模型目录 | Chat 请求 |
+| --- | --- | --- |
+| `https://host/v1` | `https://host/v1/models` | `https://host/v1/chat/completions` |
+| `https://host/magpie/v1/` | `https://host/magpie/v1/models` | `https://host/magpie/v1/chat/completions` |
+| `https://host/custom-api` | `https://host/custom-api/models` | `https://host/custom-api/chat/completions` |
+
+Responses 和 Anthropic 请求同样在该前缀下使用 `responses`、`messages`。例如 NGINX 把 `/magpie/` 转发到远端网关根路径时，填写 `https://magpie.example.com/magpie/v1`；外部的 `/magpie/v1/models` 对应上游 `/v1/models`。如果把 `/custom-api/` rewrite 到远端网关 `/v1/`，则填写 `https://host/custom-api`。地址指向 **Magpie API 网关**（默认端口 3425），而不是 Web 管理界面（默认端口 3430）。支持 HTTP/HTTPS；不接受 URL 内的用户名、密码、查询参数或片段。
+
+模型发现、30 秒刷新和推理都使用同一个远端与 token。远程模式不读取本机 Magpie 地址或 Fast 配置，也不会自动启动本机网关、失败后回退到本机。首次发现失败会报错；后续刷新失败保留最近成功的目录。目录请求不跟随重定向，反代应直接处理所配置的地址。
+
+### 本机网关
+
+未配置 `remote` 时，地址优先级：
 
 1. OpenCode 服务进程中的 `MAGPIE_ADDR`。
 2. `$XDG_CONFIG_HOME/magpie/settings.json` 的 `port`。
@@ -160,7 +198,7 @@ Fast 模型优先采用内置表中明确登记的 Fast 费率及上下文档位
 MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 ```
 
-`0.0.0.0`、`::` 监听地址会转换为本机访问地址。本版本面向本机网关，不支持远程服务器地址。共享服务模式下，在终端临时设置变量不一定会改变已经启动的 OpenCode 服务环境。
+`0.0.0.0`、`::` 监听地址会转换为本机访问地址。`MAGPIE_ADDR` 只用于本机网关，远程服务器使用上面的 `options.remote`。共享服务模式下，在终端临时设置变量不一定会改变已经启动的 OpenCode 服务环境。
 
 网关不在线时，插件在 PATH、`~/.local/bin`、常见 Homebrew 路径以及 macOS 的 `Magpie.app` 中寻找可执行文件并把它拉起来。找到的是 `Magpie.app` 里的可执行文件时（安装器的软链会解析到真实路径），macOS 上优先启动 `magpie tray`——它同样提供网关，而且带窗口，路由页可以查看。app 非零退出或被信号终止后，才退回无窗口的 `magpie serve`。其他情况直接用 `serve`。Windows 通过 PATH / `~/.local/bin` 寻找 `magpie.exe`。如果无法找到，请安装 Magpie 或把它加入 OpenCode 服务的 PATH。
 
@@ -182,6 +220,12 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 4. 所有来源均没有价格时，模型仍然列出、仍然可选，只是不填 `cost`。空费用不是 0 元，OpenCode 不会把它当成免费；实际费用以 Magpie 或服务账单为准。**路由组**同样如此：Magpie 只在组内全部成员同价时才给组报价，而路由组每一轮的成员由路由决定，成本本来就是一个区间而不是单一数字。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
 
 models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，基础价和 context 阶梯价一并传给 OpenCode。
+
+### 0.3.0
+
+- 新增 `options.remote.baseURL` 与 `options.remote.token`，支持远端 Magpie 网关及带路径前缀的反向代理。
+- API baseURL 保留完整路径，不自动追加 `/v1`；模型发现、刷新和三种原生推理协议共用远端配置与 Gateway Key。
+- 远程模式不启动本机 Magpie，也不读取本机插件 Fast 能力；刷新失败仍保留最近成功的目录。
 
 ### 0.2.0
 

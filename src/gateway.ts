@@ -9,6 +9,61 @@ import type { MagpieModel } from './catalog.js';
 export const INSTALL_MESSAGE =
   '未安装 Magpie，请先从 https://usemagpie.ai/zh/ 安装并登录所需服务，再使用此插件。';
 
+export type GatewayConnection = {
+  baseURL: string;
+  token: string;
+  remote: boolean;
+  ensure: () => Promise<void>;
+};
+
+/** Explicit remote URLs are API bases, including any reverse-proxy prefix and version path. */
+export const resolveConnection = async (options?: unknown): Promise<GatewayConnection> => {
+  const remote = (options as { remote?: unknown } | undefined)?.remote;
+  if (remote === undefined) {
+    const localURL = await resolveBaseURL();
+    return {
+      baseURL: `${localURL}/v1`,
+      token: 'magpie',
+      remote: false,
+      ensure: () => ensureGateway(localURL),
+    };
+  }
+  const invalid = (field: string, reason: string): Error =>
+    new Error(`Magpie 插件的 options.remote${field} 无效：${reason}。`);
+  if (typeof remote !== 'object' || remote === null || Array.isArray(remote))
+    throw invalid('', '必须是包含 baseURL 和 token 的对象');
+  const value = remote as Record<string, unknown>;
+  if (Object.keys(value).some((key) => key !== 'baseURL' && key !== 'token'))
+    throw invalid('', '仅支持 baseURL 和 token 字段');
+  let url: URL;
+  try {
+    if (typeof value.baseURL !== 'string' || value.baseURL.trim() !== value.baseURL)
+      throw new Error();
+    url = new URL(value.baseURL);
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      throw new Error();
+  } catch {
+    throw invalid(
+      '.baseURL',
+      '必须是完整 HTTP(S) API 基地址，不能包含用户名、密码、查询参数或片段',
+    );
+  }
+  if (typeof value.token !== 'string' || !/^[\x21-\x7e]+$/.test(value.token))
+    throw invalid('.token', '必须是非空 token，不能包含空格或控制字符');
+  return {
+    baseURL: url.href.replace(/\/+$/, ''),
+    token: value.token,
+    remote: true,
+    ensure: async () => {},
+  };
+};
+
 export const resolveBaseURL = async (): Promise<string> => {
   if (process.env.MAGPIE_ADDR) {
     const addr = process.env.MAGPIE_ADDR.replace(/^:/, '127.0.0.1:');
@@ -173,18 +228,27 @@ export const ensureGateway = async (baseURL: string): Promise<void> => {
   }
 };
 
-export const fetchModels = async (baseURL: string): Promise<MagpieModel[]> => {
-  const response = await fetch(`${baseURL}/v1/models`, {
-    headers: { Authorization: 'Bearer magpie', 'X-Magpie-Prices': '1' },
+export const fetchModels = async (baseURL: string, token = 'magpie'): Promise<MagpieModel[]> => {
+  const response = await fetch(`${baseURL}/models`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Magpie-Prices': '1',
+      'X-Magpie-Agent': 'opencode',
+    },
+    redirect: 'error',
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`Magpie 模型发现失败：HTTP ${response.status}`);
-  const body = (await response.json()) as { data?: MagpieModel[] };
+  const body = (await response.json().catch(() => undefined)) as
+    | { data?: MagpieModel[] }
+    | undefined;
   if (
-    !Array.isArray(body.data) ||
-    body.data.some((model) => typeof model.id !== 'string' || typeof model.owned_by !== 'string')
+    !Array.isArray(body?.data) ||
+    body.data.some(
+      (model) => !model || typeof model.id !== 'string' || typeof model.owned_by !== 'string',
+    )
   ) {
-    throw new Error('Magpie /v1/models 返回了无效的模型目录。');
+    throw new Error('Magpie models 接口返回了无效的模型目录。');
   }
   return body.data;
 };

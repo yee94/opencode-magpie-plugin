@@ -156,13 +156,13 @@ describe('Magpie discovery', () => {
       }
     });
     await expect(ensureGateway(url)).resolves.toBeUndefined();
-    expect(await fetchModels(url)).toEqual([row('cursor')]);
+    expect(await fetchModels(`${url}/v1`)).toEqual([row('cursor')]);
   });
 
   it('rejects another service and malformed discovery instead of publishing an empty catalog', async () => {
     const url = await serve((_request, response) => response.end('{}'));
     await expect(probeGateway(url)).rejects.toThrow('非 Magpie');
-    await expect(fetchModels(url)).rejects.toThrow('无效');
+    await expect(fetchModels(`${url}/v1`)).rejects.toThrow('无效');
   });
 
   it('normalizes wildcard listen addresses to loopback', async () => {
@@ -209,6 +209,7 @@ describe('Magpie discovery', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     const cleanup = await plugin.setup(ctx);
     expect(catalog[0].info.name).toBe('Cursor');
+    expect(catalog[0].models[0].settings).toMatchObject({ baseURL: `${url}/v1`, apiKey: 'magpie' });
     const request = new Request(`${url}/v1/chat/completions`);
     await hook({ sessionID: 'session-test', request });
     expect(request.headers.get('X-Magpie-Session')).toBe('session-test');

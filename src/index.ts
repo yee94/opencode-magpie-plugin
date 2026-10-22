@@ -2,7 +2,7 @@ import { normalizeOpenAICallIDs } from './call-ids.js';
 import { buildInventory, hasUnpricedModel, parsePresentation } from './catalog.js';
 import { type CatalogCache, loadCatalogCache } from './catalog-cache.js';
 import { loadFastModelIDs } from './fast-models.js';
-import { ensureGateway, fetchModels, resolveBaseURL } from './gateway.js';
+import { fetchModels, resolveConnection } from './gateway.js';
 import { createTrackedSetup, type Plugin2, reloadProviderCatalog } from './opencode.js';
 
 const plugin: Plugin2 = {
@@ -14,12 +14,15 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
   if (!ctx.provider) throw new Error('Magpie 插件需要 OpenCode V2 provider.transform。');
   // Parsed once. The first catalog and the 30s refresh close over the same presentation.
   const presentation = parsePresentation(ctx.options);
-  const baseURL = await resolveBaseURL();
-  await ensureGateway(baseURL);
+  const connection = await resolveConnection(ctx.options);
+  const { baseURL, token } = connection;
+  const apiURL = new URL(baseURL);
+  await connection.ensure();
   let catalog: CatalogCache = await loadCatalogCache();
-  let inventory = buildInventory(await fetchModels(baseURL), baseURL, {
+  let inventory = buildInventory(await fetchModels(baseURL, token), baseURL, {
+    apiKey: token,
     catalog: catalog.data,
-    fastModelIDs: await loadFastModelIDs(),
+    fastModelIDs: connection.remote ? undefined : await loadFastModelIDs(),
     presentation,
   });
   const { track, cleanup } = createTrackedSetup();
@@ -39,8 +42,12 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
     await track(
       ctx.session.hook('http.request', async (event) => {
         const url = new URL(event.request.url);
-        if (url.origin !== baseURL || !url.pathname.startsWith('/v1/')) return;
-        await ensureGateway(baseURL);
+        if (
+          url.origin !== apiURL.origin ||
+          !url.pathname.startsWith(`${apiURL.pathname.replace(/\/$/, '')}/`)
+        )
+          return;
+        await connection.ensure();
         event.request.headers.set('X-Magpie-Session', event.sessionID);
         event.request.headers.set('X-Magpie-Agent', 'opencode');
       }),
@@ -68,12 +75,13 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
     if (disposed || refreshing) return;
     refreshing = true;
     try {
-      await ensureGateway(baseURL);
-      const rows = await fetchModels(baseURL);
+      await connection.ensure();
+      const rows = await fetchModels(baseURL, token);
       catalog = await loadCatalogCache(hasUnpricedModel(inventory));
       const next = buildInventory(rows, baseURL, {
+        apiKey: token,
         catalog: catalog.data,
-        fastModelIDs: await loadFastModelIDs(),
+        fastModelIDs: connection.remote ? undefined : await loadFastModelIDs(),
         presentation,
       });
       await apply(next);

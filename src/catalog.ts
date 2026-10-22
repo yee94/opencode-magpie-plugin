@@ -119,6 +119,7 @@ export type CatalogPresentation = {
 };
 
 export type InventoryOptions = {
+  apiKey?: string;
   /** The cached models.dev catalog, for models neither the built-in table nor Magpie prices. */
   catalog?: ModelsDevCatalog;
   fastModelIDs?: ReadonlySet<string>;
@@ -179,7 +180,8 @@ export const parsePresentation = (options: unknown): CatalogPresentation => {
   if (options === undefined) return { groups: [], order: new Map() };
   if (!isRecord(options)) throw invalidOptions('options', '必须是对象');
   for (const key of Object.keys(options)) {
-    if (key !== 'groups' && key !== 'order') throw invalidOptions(`options.${key}`, '不是已知字段');
+    if (key !== 'groups' && key !== 'order' && key !== 'remote')
+      throw invalidOptions(`options.${key}`, '不是已知字段');
   }
   return {
     groups: parseGroups(options.groups),
@@ -208,6 +210,7 @@ export const buildInventory = (
   options: InventoryOptions = {},
 ): Inventory => {
   const providers = new Map<string, Inventory[number]>();
+  const apiKey = options.apiKey ?? 'magpie';
   const fastModelIDs = new Set(options.fastModelIDs);
   const presentation = options.presentation ?? { groups: [], order: new Map() };
   // Longest prefix wins, so a narrower bucket is not swallowed by a shorter one declared first.
@@ -263,8 +266,8 @@ export const buildInventory = (
           ? '@opencode/ai/providers/openai-compatible/responses'
           : '@opencode/ai/providers/openai-compatible';
       model.settings = {
-        baseURL: `${baseURL}/v1`,
-        apiKey: 'magpie',
+        baseURL,
+        apiKey,
         transport: 'http',
       };
       model.variants = reasoningVariants(row, !!anthropic);
@@ -278,12 +281,12 @@ export const buildInventory = (
           activation: 'enabled' as const,
           package: '@opencode/ai/providers/openai-compatible',
           settings: {
-            baseURL: `${baseURL}/v1`,
-            apiKey: 'magpie',
+            baseURL,
+            apiKey,
             transport: 'http',
           },
           headers: {
-            Authorization: 'Bearer magpie',
+            Authorization: `Bearer ${apiKey}`,
             'X-Magpie-Agent': 'opencode',
           },
         },

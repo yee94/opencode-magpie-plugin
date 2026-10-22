@@ -4,8 +4,12 @@ import plugin from '../src/index.js';
 import type { PluginContext } from '../src/opencode.js';
 
 vi.mock('../src/gateway.js', () => ({
-  resolveBaseURL: async () => 'http://127.0.0.1:3425',
-  ensureGateway: async () => {},
+  resolveConnection: async () => ({
+    baseURL: 'http://127.0.0.1:3425/v1',
+    token: 'magpie',
+    remote: false,
+    ensure: async () => {},
+  }),
   fetchModels: async () => [],
 }));
 vi.mock('../src/catalog-cache.js', () => ({ loadCatalogCache: async () => ({}) }));
