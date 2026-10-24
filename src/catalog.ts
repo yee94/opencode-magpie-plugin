@@ -90,6 +90,24 @@ const providerName = (model: MagpieModel): string => {
   );
 };
 
+const nestedProvider = (row: MagpieModel): { id: string; name: string } | undefined => {
+  const prefix = `${row.owned_by}/`;
+  if (!row.id.startsWith(prefix)) return;
+  const remainder = row.id.slice(prefix.length);
+  const slash = remainder.indexOf('/');
+  if (slash <= 0 || slash === remainder.length - 1) return;
+  const source = remainder.slice(0, slash);
+  const label = providerName(row);
+  const sourceName =
+    source === 'auto' || source === 'group'
+      ? 'routing group'
+      : providerName({ id: source, owned_by: source });
+  return {
+    id: `${row.owned_by}/${source}`,
+    name: row.magpie_label?.split(' · ').length === 3 ? label : `${sourceName} · ${label}`,
+  };
+};
+
 /** Magpie writes context windows as `Claude Opus 5.5 @ 1m`. The picker shows `@1m`. */
 export const displayName = (name: string): string => name.replace(/@\s+(\d+(?:k|m))/gi, '@$1');
 
@@ -234,7 +252,8 @@ export const buildInventory = (
             (entry) => groupKey.length > entry.prefix.length && groupKey.startsWith(entry.prefix),
           )
         : undefined;
-      const owner = group ? (bucket?.id ?? ROUTING_GROUP) : row.owned_by;
+      const nested = group ? undefined : nestedProvider(row);
+      const owner = group ? (bucket?.id ?? ROUTING_GROUP) : (nested?.id ?? row.owned_by);
       // Names are the Magpie groups; IDs are namespaced so an existing Cursor plugin is not replaced.
       const providerID = `magpie-${encodeURIComponent(owner)}`;
       // A matched bucket drops its prefix from the picker id. The wire id stays the gateway row.
@@ -277,7 +296,7 @@ export const buildInventory = (
       const entry = providers.get(providerID) ?? {
         info: {
           id: providerID,
-          name: bucket ? bucket.name : group ? 'Magpie' : providerName(row),
+          name: bucket ? bucket.name : group ? 'Magpie' : (nested?.name ?? providerName(row)),
           activation: 'enabled' as const,
           package: '@opencode/ai/providers/openai-compatible',
           settings: {

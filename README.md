@@ -55,7 +55,7 @@ OpenCode V2
 
 ```jsonc
 {
-  "plugins": ["opencode-magpie-plugin@0.3.0"]
+    "plugins": ["opencode-magpie-plugin@0.3.1"]
 }
 ```
 
@@ -80,6 +80,8 @@ opencode service restart
 | Magpie | `magpie-magpie` | `magpie-magpie/auto` | `group/auto` |
 
 示例模型仅说明格式，实际列表取决于 Magpie 当前账号与配置。Magpie 自定义 provider ID 会原样映射为带 `magpie-` 前缀的 ID。
+
+网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
 
 Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `owned_by` 或首个候选服务拆成 provider。没有插件 options 时，它们统一归到 **Magpie** 分组下。发送时仍保留网关原始 id（`group/auto`），价格只用 Magpie 给出的价格，不按成员猜测。
 
