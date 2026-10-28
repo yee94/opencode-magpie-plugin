@@ -55,7 +55,7 @@ OpenCode V2
 
 ```jsonc
 {
-    "plugins": ["opencode-magpie-plugin@0.3.1"]
+    "plugins": ["opencode-magpie-plugin@0.3.2"]
 }
 ```
 
@@ -123,7 +123,7 @@ Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `o
 
 本机模式先检查网关根路径的 `name: "magpie"`，再请求 `/v1/models`。远程模式直接请求配置的 API baseURL 下的 `models`，不探测站点根路径，以兼容只暴露 API 的反向代理。请求携带 `X-Magpie-Prices: 1` 读取可用的网关价格扩展。
 
-目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。仅发现聊天目录；重复的无 provider 前缀别名、图片生成或其他非聊天专用模型不会注册为聊天模型。
+目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。网关未提供有效上下文窗口时，默认使用 256K（256,000 tokens）。仅发现聊天目录；重复的无 provider 前缀别名、图片生成或其他非聊天专用模型不会注册为聊天模型。
 
 思考强度读取新版 `reasoning_levels`，并兼容已安装版本常见的 `supported_reasoning_levels`（`{ effort }` 对象或字符串列表）。只有网关实际声明的档位才会出现，可在 OpenCode 的模型变体控件中选择，或使用 `provider/model#high` 这样的引用。`default` 保留服务默认行为，不额外生成档位；网关未提供档位时不会凭模型名称猜测。
 

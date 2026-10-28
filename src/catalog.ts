@@ -268,7 +268,7 @@ export const buildInventory = (
         name: displayName(row.display_name ?? modelID),
         cost,
         limit: {
-          context: row.context_window || 128_000,
+          context: row.context_window || 256_000,
           output: row.max_output_tokens || 32_000,
         },
         modalities: row.modalities,
