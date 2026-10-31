@@ -97,14 +97,20 @@ const nestedProvider = (row: MagpieModel): { id: string; name: string } | undefi
   const slash = remainder.indexOf('/');
   if (slash <= 0 || slash === remainder.length - 1) return;
   const source = remainder.slice(0, slash);
+  // A routing group is Magpie's own, so "routing group · Remote magpie" shows as "Magpie · Remote magpie".
+  const routing = source === 'auto' || source === 'group';
+  const parts = row.magpie_label?.split(' · ') ?? [];
+  if (routing) {
+    return {
+      id: `${row.owned_by}/${source}`,
+      name: parts.length === 3 ? `Magpie · ${parts[2]}` : `Magpie · ${providerName(row)}`,
+    };
+  }
   const label = providerName(row);
-  const sourceName =
-    source === 'auto' || source === 'group'
-      ? 'routing group'
-      : providerName({ id: source, owned_by: source });
+  const sourceName = providerName({ id: source, owned_by: source });
   return {
     id: `${row.owned_by}/${source}`,
-    name: row.magpie_label?.split(' · ').length === 3 ? label : `${sourceName} · ${label}`,
+    name: parts.length === 3 ? label : `${sourceName} · ${label}`,
   };
 };
 

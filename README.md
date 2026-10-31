@@ -223,6 +223,10 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 
 models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，基础价和 context 阶梯价一并传给 OpenCode。
 
+### 0.4.2
+
+- 修正远端网关下路由组（`auto` / `group`）的 provider 显示名：不再显示为 "routing group"，改为 "Magpie"。
+
 ### 0.4.1
 
 - 生图 skill 增加回退规则：某模型不可用（额度、积分、不支持的尺寸等）时不重试原模型，改用 `image_list` 中其他模型（优先换 provider），最多尝试三个模型。

@@ -26,7 +26,10 @@ describe('nested gateway providers', () => {
     for (const row of rows) {
       const source = row.id.split('/')[1];
       const entry = inventory.find((item) => item.info.id === `magpie-remote-magpie%2F${source}`);
-      expect(entry?.info.name).toBe(row.magpie_label?.split(' · ').slice(1).join(' · '));
+      const expected = row.magpie_label?.split(' · ').slice(1).join(' · ');
+      expect(entry?.info.name).toBe(
+        source === 'auto' ? expected?.replace('routing group', 'Magpie') : expected,
+      );
       expect(entry?.models[0]).toMatchObject({
         id: `${source}/gpt-6-astra`,
         name: 'GPT-6-Astra',
