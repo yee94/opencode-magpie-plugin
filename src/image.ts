@@ -154,10 +154,11 @@ const SKILL = [
   '   Some models take only an exact `WIDTHxHEIGHT` such as `1024x1024`: after a size error, retry with that.',
   '   Done when the prompt is non-empty.',
   '3. Call `image_gen` once. It waits until the image is saved, which can take minutes, and returns a Markdown image `![image](<path>)`.',
-  '   Done when you have that line.',
-  '4. Put the returned Markdown image in your reply body as it is. Copy the file into the project with the shell when the user wants it there. A failure message (quota, credits, a reset time) goes to the user as written.',
+  '   If it fails because that model is unavailable (quota, credits, a reset time, not served, unsupported size), do not retry it: call `image_list`, pick another model, preferably from another provider, and call `image_gen` again. Try at most three models.',
+  '   Done when you have a Markdown image line, or every tried model has failed.',
+  '4. Put the Markdown image in your reply body as it is, and name the model that drew it. Copy the file into the project with the shell when the user wants it there. If every model failed, tell the user each failure as written, including any reset time.',
   '',
-  'Each image spends the user’s credits: generate once per request.',
+  'Each image spends the user’s credits: after a success, generate again only if the user asks.',
 ].join('\n');
 
 export const registerImageSkill = (editor: SkillEditor, path: string): void => {
