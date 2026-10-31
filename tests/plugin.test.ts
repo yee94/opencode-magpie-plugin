@@ -59,7 +59,7 @@ describe('Magpie discovery', () => {
     );
   });
 
-  it('groups every routing group under Magpie instead of a member provider', () => {
+  it('groups manual routing groups under Magpie Group instead of a member provider', () => {
     const fast = {
       ...row('cursor'),
       id: 'group/fast',
@@ -78,11 +78,15 @@ describe('Magpie discovery', () => {
       [row('cursor'), row('workbuddy'), fast, auto],
       'http://localhost:3425',
     );
-    expect(catalog.map((entry) => entry.info.name)).toEqual(['Cursor', 'WorkBuddy', 'Magpie']);
+    expect(catalog.map((entry) => entry.info.name)).toEqual([
+      'Cursor',
+      'WorkBuddy',
+      'Magpie Group',
+    ]);
     const magpie = catalog[2];
-    expect(magpie.info.id).toBe('magpie-magpie');
+    expect(magpie.info.id).toBe('magpie-group');
     expect(magpie.models.map((model) => model.modelID)).toEqual(['group/fast', 'group/auto']);
-    expect(magpie.models[0].providerID).toBe('magpie-magpie');
+    expect(magpie.models[0].providerID).toBe('magpie-group');
     expect(magpie.models[0].cost[0]).toMatchObject({ input: 2, output: 8 });
     expect(catalog[0].models.map((model) => model.modelID)).toEqual(['cursor/gpt-5.5']);
     expect(catalog[1].models.map((model) => model.modelID)).toEqual(['workbuddy/gpt-5.5']);
@@ -136,7 +140,7 @@ describe('Magpie discovery', () => {
     };
     const catalog = buildInventory([mixed, same], 'http://localhost:3425');
     const magpie = catalog[0];
-    expect(magpie.info.id).toBe('magpie-magpie');
+    expect(magpie.info.id).toBe('magpie-group');
     expect(magpie.models.map((model) => model.modelID)).toEqual(['group/mixed', 'group/flat']);
     // An unpriced group is selectable and keeps its own name: its cost is a range, not a number.
     expect(magpie.models[0].enabled).toBe(true);

@@ -43,8 +43,9 @@ export type Inventory = { info: ProviderInfo; models: ModelInfo2[] }[];
 export const hasUnpricedModel = (inventory: Inventory): boolean =>
   inventory.some((entry) => entry.models.some((model) => model.cost.length === 0));
 
-/** Routing groups route across providers, so they belong to Magpie itself rather than to a vendor. */
-const ROUTING_GROUP = 'magpie';
+/** Routing groups are named by their own source rather than by a member vendor. */
+const routingGroupName = (source: string): string | undefined =>
+  source === 'group' ? 'Group' : source === 'auto' ? 'Auto' : undefined;
 
 const routingGroupKey = (id: string): string | undefined => {
   if (id.startsWith('group/')) return id.slice('group/'.length);
@@ -81,12 +82,15 @@ const pricingProvider = (owner: string): ModelPricingProvider | undefined => {
   );
 };
 
+const normalizeProviderName = (name: string): string =>
+  name.replace(/\bremote[- ]magpie\b/gi, 'Remote Magpie');
+
 const providerName = (model: MagpieModel): string => {
   const label = model.magpie_label?.split(' · ').slice(1).join(' · ');
-  if (label) return label;
-  return (
-    ({ cursor: 'Cursor', workbuddy: 'WorkBuddy' } as Record<string, string>)[model.owned_by] ??
-    model.owned_by
+  return normalizeProviderName(
+    label ||
+      (({ cursor: 'Cursor', workbuddy: 'WorkBuddy' } as Record<string, string>)[model.owned_by] ??
+        model.owned_by),
   );
 };
 
@@ -97,13 +101,13 @@ const nestedProvider = (row: MagpieModel): { id: string; name: string } | undefi
   const slash = remainder.indexOf('/');
   if (slash <= 0 || slash === remainder.length - 1) return;
   const source = remainder.slice(0, slash);
-  // A routing group is Magpie's own, so "routing group · Remote magpie" shows as "Magpie · Remote magpie".
-  const routing = source === 'auto' || source === 'group';
+  // The gateway suffix already contains Magpie; distinguish Group and Auto without repeating it.
+  const routing = routingGroupName(source);
   const parts = row.magpie_label?.split(' · ') ?? [];
   if (routing) {
     return {
       id: `${row.owned_by}/${source}`,
-      name: parts.length === 3 ? `Magpie · ${parts[2]}` : `Magpie · ${providerName(row)}`,
+      name: `${routing} · ${normalizeProviderName(parts.length === 3 ? parts[2] : providerName(row))}`,
     };
   }
   const label = providerName(row);
@@ -132,8 +136,8 @@ export type GroupBucket = {
 };
 
 /**
- * How the catalog is shown. Empty groups and order reproduce today's catalog: every group/
- * row stays on magpie-magpie. Nothing here names a real routing group. Which models are
+ * How the catalog is shown. Empty groups and order keep group/ and auto/ on their default
+ * providers. Nothing here names a real routing group. Which models are
  * listed at all is Magpie's call (`magpie visible`, `magpie group rm`), not this plugin's.
  */
 export type CatalogPresentation = {
@@ -250,16 +254,17 @@ export const buildInventory = (
   rows
     .filter((row) => !row.kind && row.id.includes('/'))
     .forEach((row) => {
+      const source = row.id.slice(0, row.id.indexOf('/'));
       const groupKey = routingGroupKey(row.id);
       const group = groupKey !== undefined;
       const bucket = groupKey
-        ? // A prefix must leave a model id behind; a bare `group/adams-` stays on magpie-magpie.
+        ? // A prefix must leave a model id behind; a bare `group/adams-` stays on magpie-group.
           buckets.find(
             (entry) => groupKey.length > entry.prefix.length && groupKey.startsWith(entry.prefix),
           )
         : undefined;
       const nested = group ? undefined : nestedProvider(row);
-      const owner = group ? (bucket?.id ?? ROUTING_GROUP) : (nested?.id ?? row.owned_by);
+      const owner = group ? (bucket?.id ?? source) : (nested?.id ?? row.owned_by);
       // Names are the Magpie groups; IDs are namespaced so an existing Cursor plugin is not replaced.
       const providerID = `magpie-${encodeURIComponent(owner)}`;
       // A matched bucket drops its prefix from the picker id. The wire id stays the gateway row.
@@ -302,7 +307,11 @@ export const buildInventory = (
       const entry = providers.get(providerID) ?? {
         info: {
           id: providerID,
-          name: bucket ? bucket.name : group ? 'Magpie' : (nested?.name ?? providerName(row)),
+          name: bucket
+            ? bucket.name
+            : group
+              ? `Magpie ${routingGroupName(source)}`
+              : (nested?.name ?? providerName(row)),
           activation: 'enabled' as const,
           package: '@opencode/ai/providers/openai-compatible',
           settings: {

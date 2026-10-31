@@ -71,7 +71,7 @@ describe('display names', () => {
 });
 
 describe('catalog presentation', () => {
-  it('leaves every routing group on magpie-magpie when options are empty', () => {
+  it('leaves every manual routing group on Magpie Group when options are empty', () => {
     const rows = [group('group/adams-x'), group('group/combo-y')];
     for (const inventory of [
       buildInventory(rows, baseURL),
@@ -79,7 +79,7 @@ describe('catalog presentation', () => {
       entry(rows, {}),
     ]) {
       expect(inventory).toHaveLength(1);
-      expect(inventory[0].info).toMatchObject({ id: 'magpie-magpie', name: 'Magpie' });
+      expect(inventory[0].info).toMatchObject({ id: 'magpie-group', name: 'Magpie Group' });
       expect(inventory[0].models.map((model) => model.id)).toEqual(['adams-x', 'combo-y']);
       expect(inventory[0].models.map((model) => model.modelID)).toEqual([
         'group/adams-x',
@@ -96,7 +96,7 @@ describe('catalog presentation', () => {
     ]);
     const adams = byProvider(inventory, 'magpie-adams');
     const combo = byProvider(inventory, 'magpie-combo');
-    const magpie = byProvider(inventory, 'magpie-magpie');
+    const magpie = byProvider(inventory, 'magpie-group');
     expect(adams.info.name).toBe('Adams');
     expect(combo.info.name).toBe('Combo');
     expect(adams.models[0]).toMatchObject({
@@ -109,7 +109,7 @@ describe('catalog presentation', () => {
       modelID: 'group/combo-grok-deepseek',
       name: 'grok-deepseek',
     });
-    expect(magpie.info.name).toBe('Magpie');
+    expect(magpie.info.name).toBe('Magpie Group');
     expect(magpie.models[0].id).toBe('auto');
   });
 
@@ -182,7 +182,7 @@ describe('catalog presentation', () => {
 
   it('does not match a prefix that would leave an empty model id', () => {
     const inventory = shown([group('group/adams-')]);
-    expect(inventory[0].info.id).toBe('magpie-magpie');
+    expect(inventory[0].info.id).toBe('magpie-group');
     expect(inventory[0].models[0].id).toBe('adams-');
   });
 

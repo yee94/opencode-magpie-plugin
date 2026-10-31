@@ -77,19 +77,24 @@ opencode service restart
 | --- | --- | --- | --- |
 | Cursor | `magpie-cursor` | `magpie-cursor/gpt-5.5` | `cursor/gpt-5.5` |
 | WorkBuddy | `magpie-workbuddy` | `magpie-workbuddy/claude-opus-4-6` | `workbuddy/claude-opus-4-6` |
-| Magpie | `magpie-magpie` | `magpie-magpie/auto` | `group/auto` |
+| Magpie Group | `magpie-group` | `magpie-group/auto` | `group/auto` |
+| Magpie Auto | `magpie-auto` | `magpie-auto/auto-glm-5.2` | `auto/glm-5.2` |
+| Group · Remote Magpie | `magpie-remote-magpie%2Fgroup` | `magpie-remote-magpie%2Fgroup/group/auto` | `remote-magpie/group/auto` |
+| Auto · Remote Magpie | `magpie-remote-magpie%2Fauto` | `magpie-remote-magpie%2Fauto/auto/glm-5.2` | `remote-magpie/auto/glm-5.2` |
 
 示例模型仅说明格式，实际列表取决于 Magpie 当前账号与配置。Magpie 自定义 provider ID 会原样映射为带 `magpie-` 前缀的 ID。
 
-网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
+网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote Magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
 
-Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `owned_by` 或首个候选服务拆成 provider。没有插件 options 时，它们统一归到 **Magpie** 分组下。发送时仍保留网关原始 id（`group/auto`），价格只用 Magpie 给出的价格，不按成员猜测。
+Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `owned_by` 或首个候选服务拆成 provider。本地 `group/` 与 `auto/` 分别归到 **Magpie Group**、**Magpie Auto**；远程嵌套的 `remote-magpie/group/` 与 `remote-magpie/auto/` 分别显示为 **Group · Remote Magpie**、**Auto · Remote Magpie**。默认路由组的 provider 名称只出现一次 Magpie，不再把 Group 和 Auto 显示成同名分组。远端未给模型标签时也遵循这一规则。发送时仍保留网关原始 id，价格只用 Magpie 给出的价格，不按成员猜测。
+
+本地默认路由组的 provider ID 从 `magpie-magpie` 拆为 `magpie-group` 与 `magpie-auto`，旧模型选择需要重新选择，`options.order` 的 key 也需对应更新。选择器中的模型 ID 和发给网关的 ID 不变；远程嵌套来源与自定义分桶的 provider ID 不变。
 
 ### 目录呈现
 
-新版 Auto Group 的 `auto/<model>` 也按路由组处理，默认放在 `magpie-magpie`，选择器 ID 为 `auto-<model>`，请求仍发送原始 `auto/<model>`。它按 `auto-<model>` 匹配下述 `groups.prefix`，因此可用 `auto-` 单独分桶；模型名中的点号保持原样。旧的 `group/` 格式继续支持，普通厂商模型不会被自动组覆盖。自动组及其 Fast 变体仅采用 Magpie 报价。
+新版 Auto Group 的 `auto/<model>` 也按路由组处理，默认放在 `magpie-auto`（Magpie Auto），选择器 ID 为 `auto-<model>`，请求仍发送原始 `auto/<model>`。它按 `auto-<model>` 匹配下述 `groups.prefix`，因此可用 `auto-` 单独分桶；模型名中的点号保持原样。旧的 `group/` 格式继续支持，默认放在 `magpie-group`（Magpie Group），普通厂商模型不会被自动组覆盖。自动组及其 Fast 变体仅采用 Magpie 报价。
 
-路由组的成员由 Magpie 维护；这个插件只决定 OpenCode 选择器里怎么摆。分组、显示名和排序写在 `opencode.jsonc` 的插件 `options` 里，升级插件包之后仍在，不用再改 `dist`。空 options（或仍用字符串引用插件）和不声明时完全一样：所有 `group/` 行都在 `magpie-magpie`。
+路由组的成员由 Magpie 维护；这个插件只决定 OpenCode 选择器里怎么摆。分组、显示名和排序写在 `opencode.jsonc` 的插件 `options` 里，升级插件包之后仍在，不用再改 `dist`。空 options（或仍用字符串引用插件）和不声明时完全一样：`group/` 行都在 `magpie-group`，`auto/` 行都在 `magpie-auto`。
 
 ```jsonc
 {
@@ -113,7 +118,7 @@ Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `o
 
 上面只是写法示例，不是插件默认值。语义：
 
-- 只对 id 以 `group/` 或 `auto/` 开头的行分桶。`groups` 按 `prefix` 最长优先匹配。命中后 provider 是 `magpie-<id>`，显示名是 `name`，选择器里的模型 id 去掉这段 prefix（`group/adams-deepseek-v4.1-flash` → `magpie-adams/deepseek-v4.1-flash`）。发给 Magpie 的仍是原始 id。没匹配到的组保持今天的行为：`magpie-magpie`，显示名 Magpie，id 不去前缀。厂商模型（`cursor/`、`workbuddy/`）不受 `groups` 影响。
+- 只对 id 以 `group/` 或 `auto/` 开头的行分桶。`groups` 按 `prefix` 最长优先匹配。命中后 provider 是 `magpie-<id>`，显示名是 `name`，选择器里的模型 id 去掉这段 prefix（`group/adams-deepseek-v4.1-flash` → `magpie-adams/deepseek-v4.1-flash`）。发给 Magpie 的仍是原始 id。没匹配到的组分别回到 `magpie-group`（Magpie Group）或 `magpie-auto`（Magpie Auto），保留各自默认的选择器模型 ID。厂商模型（`cursor/`、`workbuddy/`）不受 `groups` 影响。
 - OpenCode 同 provider 内按 `time.released` 倒序排。`order` 的 key 是最终 provider id，值是最终模型 id（已去前缀），越靠前越靠前。名单里没有的保持 0，退化为字母序。`-fast` 克隆继承父模型的权重并紧跟在后面；不要给它单独写一条，除非那个 `-fast` id 自己出现在 `order` 里。provider 之间的顺序控制不了。
 - 插件不隐藏模型。网关列出的都会出现，没标价的也一样。不想在 OpenCode 里看到某个组，在 Magpie 里处理：不用了就 `magpie group rm <id>`，只对 OpenCode 收窄就用 `magpie visible opencode …`。组的成员是厂商模型时，删掉一个组不会影响把同一批模型当成员的其他组。
 
@@ -222,6 +227,11 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 4. 所有来源均没有价格时，模型仍然列出、仍然可选，只是不填 `cost`。空费用不是 0 元，OpenCode 不会把它当成免费；实际费用以 Magpie 或服务账单为准。**路由组**同样如此：Magpie 只在组内全部成员同价时才给组报价，而路由组每一轮的成员由路由决定，成本本来就是一个区间而不是单一数字。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
 
 models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，基础价和 context 阶梯价一并传给 OpenCode。
+
+### 0.5.0
+
+- 本地默认路由组拆为 Magpie Group（`magpie-group`）与 Magpie Auto（`magpie-auto`）；旧 `magpie-magpie` 下的模型需重新选择，排序配置需更新 provider ID。
+- 远程嵌套路由组分别显示为 Group · Remote Magpie、Auto · Remote Magpie，provider 名称只出现一次 Magpie，并统一远程来源名的大小写。远程 provider ID、原始请求 ID、计价与 Fast 行为不变。
 
 ### 0.4.2
 

@@ -12,11 +12,29 @@ describe('Auto Group model IDs', () => {
       id: 'composer-2.5',
       modelID: vendor.id,
     });
-    expect(inventory.find((entry) => entry.info.id === 'magpie-magpie')?.models[0]).toMatchObject({
+    expect(inventory.find((entry) => entry.info.id === 'magpie-auto')?.models[0]).toMatchObject({
       id: 'auto-composer-2.5',
       modelID: auto.id,
       cost: [],
     });
+  });
+
+  it.each([true, false])('separates local Group and Auto with auto-first=%s', (autoFirst) => {
+    const group: MagpieModel = { ...auto, id: 'group/composer-2.5' };
+    const rows = autoFirst ? [auto, group, vendor] : [group, auto, vendor];
+    const inventory = buildInventory(rows, baseURL);
+    expect(inventory).toHaveLength(3);
+    for (const [id, name, modelID, wireID] of [
+      ['magpie-group', 'Magpie Group', 'composer-2.5', group.id],
+      ['magpie-auto', 'Magpie Auto', 'auto-composer-2.5', auto.id],
+    ]) {
+      const entry = inventory.find((entry) => entry.info.id === id);
+      expect(entry?.info.name).toBe(name);
+      expect(entry?.info.name.match(/magpie/gi)).toHaveLength(1);
+      expect(entry?.models).toHaveLength(1);
+      expect(entry?.models[0]).toMatchObject({ id: modelID, modelID: wireID, providerID: id });
+    }
+    expect(inventory.find((entry) => entry.info.id === 'magpie-cursor')?.info.name).toBe('Cursor');
   });
 
   it.each([
