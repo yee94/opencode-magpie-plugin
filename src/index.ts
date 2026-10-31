@@ -1,8 +1,10 @@
+import { fileURLToPath } from 'node:url';
 import { normalizeOpenAICallIDs } from './call-ids.js';
 import { buildInventory, hasUnpricedModel, parsePresentation } from './catalog.js';
 import { type CatalogCache, loadCatalogCache } from './catalog-cache.js';
 import { loadFastModelIDs } from './fast-models.js';
 import { fetchModels, resolveConnection } from './gateway.js';
+import { registerImageSkill, registerImageTools } from './image.js';
 import { createTrackedSetup, type Plugin2, reloadProviderCatalog } from './opencode.js';
 
 const plugin: Plugin2 = {
@@ -38,6 +40,14 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
     );
     for (const name of ['context', 'compaction', 'generate', 'title'] as const) {
       await track(ctx.session.hook(name, normalizeOpenAICallIDs, { providerID: 'openai' }));
+    }
+    if (ctx.tool && ctx.skill) {
+      await track(ctx.tool.transform((editor) => registerImageTools(editor, connection)));
+      await track(
+        ctx.skill.transform((editor) =>
+          registerImageSkill(editor, fileURLToPath(new URL('./', import.meta.url))),
+        ),
+      );
     }
     await track(
       ctx.session.hook('http.request', async (event) => {

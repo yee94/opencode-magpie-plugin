@@ -123,7 +123,7 @@ Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `o
 
 本机模式先检查网关根路径的 `name: "magpie"`，再请求 `/v1/models`。远程模式直接请求配置的 API baseURL 下的 `models`，不探测站点根路径，以兼容只暴露 API 的反向代理。请求携带 `X-Magpie-Prices: 1` 读取可用的网关价格扩展。
 
-目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。网关未提供有效上下文窗口时，默认使用 256K（256,000 tokens）。仅发现聊天目录；重复的无 provider 前缀别名、图片生成或其他非聊天专用模型不会注册为聊天模型。
+目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。网关未提供有效上下文窗口时，默认使用 256K（256,000 tokens）。仅发现聊天目录；重复的无 provider 前缀别名、视频或其他非聊天专用模型不会注册为聊天模型。图片模型不进入聊天目录，改由下方的生图工具使用。
 
 思考强度读取新版 `reasoning_levels`，并兼容已安装版本常见的 `supported_reasoning_levels`（`{ effort }` 对象或字符串列表）。只有网关实际声明的档位才会出现，可在 OpenCode 的模型变体控件中选择，或使用 `provider/model#high` 这样的引用。`default` 保留服务默认行为，不额外生成档位；网关未提供档位时不会凭模型名称猜测。
 
@@ -222,6 +222,11 @@ MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
 4. 所有来源均没有价格时，模型仍然列出、仍然可选，只是不填 `cost`。空费用不是 0 元，OpenCode 不会把它当成免费；实际费用以 Magpie 或服务账单为准。**路由组**同样如此：Magpie 只在组内全部成员同价时才给组报价，而路由组每一轮的成员由路由决定，成本本来就是一个区间而不是单一数字。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
 
 models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，基础价和 context 阶梯价一并传给 OpenCode。
+
+### 0.4.0
+
+- 新增生图能力：插件注册 `magpie.image_list`（列出 Magpie 可用的生图模型）和 `magpie.image_gen`（经 Magpie `/v1/images/generations` 出图，结果以 `![image](路径)` 返回），以及 skill `magpie-image-generate`。生图前由 Agent 加载该 skill。
+- 不传 `model` 时使用 Magpie 设置里选定的生图模型；图片保存在系统临时目录的 `magpie-images/` 下。
 
 ### 0.3.0
 

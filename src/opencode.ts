@@ -42,9 +42,32 @@ export type ProviderEditor = {
   add: (entry: { info: ProviderInfo; models: ModelInfo2[] }) => void;
 };
 
+export type ToolEditor = {
+  namespace: (entry: { name: string; description: string }) => void;
+  add: (tool: {
+    name: string;
+    description: string;
+    input: Record<string, unknown>;
+    options?: { namespace?: string; codemode?: boolean };
+    execute: (input: unknown, context: { signal: AbortSignal }) => Promise<{ content: string }>;
+  }) => void;
+};
+
+export type SkillEditor = {
+  add: (skill: {
+    id: string;
+    name: string;
+    description: string;
+    path: string;
+    content: string;
+  }) => void;
+};
+
 export type PluginContext = {
   /** Object-form plugin options from opencode.jsonc. Absent when the package is listed as a string. */
   options?: unknown;
+  tool?: { transform: (callback: (editor: ToolEditor) => void) => Promise<Registration> };
+  skill?: { transform: (callback: (editor: SkillEditor) => void) => Promise<Registration> };
   provider?: {
     transform: (callback: (editor: ProviderEditor) => void) => Promise<Registration>;
     reload: () => Promise<void>;
