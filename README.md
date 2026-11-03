@@ -8,6 +8,8 @@
 
 An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gateways. It discovers providers and models, supplies built-in token pricing, and starts an installed local gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
 
+插件图标沿用 [Magpie 官网的小尺寸喜鹊 SVG](https://usemagpie.ai/img/magpie-small.svg)，保留原始轮廓，透明底、`currentColor` 单色渲染。源文件为 [`icon.svg`](icon.svg)，`package.json` 顶层 `icon` 内嵌同一图形的 data URI，不依赖远程图片。
+
 ## 它解决什么问题
 
 Magpie 管理多个服务的账号、模型、协议转换和路由；这个插件负责把这些能力接入 OpenCode。
