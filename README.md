@@ -86,7 +86,7 @@ opencode service restart
 
 示例模型仅说明格式，实际列表取决于 Magpie 当前账号与配置。Magpie 自定义 provider ID 会原样映射为带 `magpie-` 前缀的 ID。
 
-网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote Magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
+网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote Magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。中转可以有任意多层：模型 ID 取最后一段，其前面每一层都是独立分组，例如 `remote-magpie/vps-us/cursor/gpt-5.1` 显示在 **Cursor · VPS US · Remote Magpie** 下，provider ID 为 `magpie-remote-magpie%2Fvps-us%2Fcursor`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
 
 Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `owned_by` 或首个候选服务拆成 provider。本地 `group/` 与 `auto/` 分别归到 **Magpie Group**、**Magpie Auto**；远程嵌套的 `remote-magpie/group/` 与 `remote-magpie/auto/` 分别显示为 **Group · Remote Magpie**、**Auto · Remote Magpie**。默认路由组的 provider 名称只出现一次 Magpie，不再把 Group 和 Auto 显示成同名分组。远端未给模型标签时也遵循这一规则。发送时仍保留网关原始 id，价格只用 Magpie 给出的价格，不按成员猜测。
 

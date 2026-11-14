@@ -94,27 +94,44 @@ const providerName = (model: MagpieModel): string => {
   );
 };
 
+const hopName = (hop: string): string => {
+  const known = providerName({ id: hop, owned_by: hop });
+  if (known !== hop) return known;
+  return hop
+    .split('-')
+    .filter(Boolean)
+    .map((word) =>
+      /^[a-z]{1,3}$/i.test(word) ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1),
+    )
+    .join(' ');
+};
+
+/** The gateway's own name for the innermost hop: `… › Claude Code` or an older `model · Hop · Owner`. */
+const leafHopHint = (row: MagpieModel): string | undefined => {
+  const parts = row.magpie_label?.split(' · ') ?? [];
+  const tail = parts.length === 2 ? parts[1].split(' › ') : [];
+  if (tail.length > 1) return tail[tail.length - 1].trim() || undefined;
+  if (parts.length === 3) return parts[1].trim() || undefined;
+};
+
+/**
+ * Every gateway hop between the owner and the model id is its own provider, however deep:
+ * `remote-magpie/vps-us/cursor/gpt-5.1` lives under `remote-magpie/vps-us/cursor`.
+ * The model id is always the last segment.
+ */
 const nestedProvider = (row: MagpieModel): { id: string; name: string } | undefined => {
   const prefix = `${row.owned_by}/`;
   if (!row.id.startsWith(prefix)) return;
-  const remainder = row.id.slice(prefix.length);
-  const slash = remainder.indexOf('/');
-  if (slash <= 0 || slash === remainder.length - 1) return;
-  const source = remainder.slice(0, slash);
+  const hops = row.id.slice(prefix.length).split('/');
+  hops.pop();
+  if (hops.length === 0 || hops.some((hop) => hop.length === 0)) return;
+  const names = hops.map((hop) => hopName(hop));
+  const leaf = hops[hops.length - 1];
   // The gateway suffix already contains Magpie; distinguish Group and Auto without repeating it.
-  const routing = routingGroupName(source);
-  const parts = row.magpie_label?.split(' · ') ?? [];
-  if (routing) {
-    return {
-      id: `${row.owned_by}/${source}`,
-      name: `${routing} · ${normalizeProviderName(parts.length === 3 ? parts[2] : providerName(row))}`,
-    };
-  }
-  const label = providerName(row);
-  const sourceName = providerName({ id: source, owned_by: source });
+  names[names.length - 1] = routingGroupName(leaf) ?? leafHopHint(row) ?? names[names.length - 1];
   return {
-    id: `${row.owned_by}/${source}`,
-    name: parts.length === 3 ? label : `${sourceName} · ${label}`,
+    id: `${row.owned_by}/${hops.join('/')}`,
+    name: [...names.reverse(), normalizeProviderName(row.owned_by)].join(' · '),
   };
 };
 
