@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GatewayConnection } from '../src/gateway.js';
 import {
   drawImage,
@@ -29,6 +29,7 @@ const gateway = async (handler: Parameters<typeof createServer>[0]): Promise<Gat
 };
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     servers
       .splice(0)
@@ -37,12 +38,18 @@ afterEach(async () => {
 });
 
 describe('magpie image', () => {
-  it('lists only the image rows, asks for them, and drops a remote copy of a local model', async () => {
+  it.each([
+    undefined,
+    'yuri',
+  ])('lists only the image rows, asks for them, and drops a remote copy of a local model (%s)', async (agentID) => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
     let drawers: string | string[] | undefined;
     let auth: string | undefined;
+    let agent: string | string[] | undefined;
     const connection = await gateway((request, response) => {
       drawers = request.headers['x-magpie-drawers'];
       auth = request.headers.authorization;
+      agent = request.headers['x-magpie-agent'];
       response.setHeader('Content-Type', 'application/json');
       response.end(
         JSON.stringify({
@@ -56,17 +63,26 @@ describe('magpie image', () => {
         }),
       );
     });
+    connection.agentID = agentID;
     expect(await listImageModels(connection)).toEqual([
       { id: 'codex/gpt-image-2', name: 'GPT Image' },
       { id: 'remote-magpie/grok/imagine', name: 'Imagine' },
     ]);
     expect(drawers).toBe('1');
     expect(auth).toBe('Bearer secret');
+    expect(agent).toBe(agentID ?? 'opencode');
+    expect(new Headers(fetch.mock.calls[0][1]?.headers).has('User-Agent')).toBe(false);
   });
 
-  it('draws with the named model, saves the bytes under their real type, and returns the path', async () => {
+  it.each([
+    undefined,
+    'yuri',
+  ])('draws with the named model, saves the bytes under their real type, and returns the path (%s)', async (agentID) => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
     let received: Record<string, unknown> | undefined;
     const connection = await gateway((request, response) => {
+      expect(request.headers['x-magpie-agent']).toBe(agentID ?? 'opencode');
+      expect(request.headers.authorization).toBe('Bearer secret');
       let text = '';
       request.on('data', (chunk) => {
         text += chunk;
@@ -82,10 +98,12 @@ describe('magpie image', () => {
         );
       });
     });
+    connection.agentID = agentID;
     const result = await drawImage(connection, { prompt: 'a magpie', model: 'codex/gpt-image-2' });
     expect(received).toMatchObject({ model: 'codex/gpt-image-2', prompt: 'a magpie', n: 1 });
     expect(result.path).toMatch(/magpie-images\/image-\d+\.png$/);
     expect(await readFile(result.path)).toEqual(PNG);
+    expect(new Headers(fetch.mock.calls[0][1]?.headers).has('User-Agent')).toBe(false);
   });
 
   it('leaves the model out when none is named, so Magpie uses its own default', async () => {

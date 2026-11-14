@@ -192,6 +192,31 @@ Responses 和 Anthropic 请求同样在该前缀下使用 `responses`、`message
 
 模型发现、30 秒刷新和推理都使用同一个远端与 token。远程模式不读取本机 Magpie 地址或 Fast 配置，也不会自动启动本机网关、失败后回退到本机。首次发现失败会报错；后续刷新失败保留最近成功的目录。目录请求不跟随重定向，反代应直接处理所配置的地址。
 
+### Agent 标签与原生归属
+
+`options.agentID` 是可选的请求标签，默认 `opencode`；支持 1–64 个小写字母、数字、`.`、`_`、`-`，且首位为字母或数字。它会用于模型发现、目录刷新、推理和生图请求的 `X-Magpie-Agent`，但**不会覆盖 OpenCode 的真实 User-Agent，也不是 UI 来源检测**。
+
+例如 [Yuri](https://useyuri.top) 通过 Magpie 的原生 Agent 连接获得网关 URL 和 key 后，可以把它们原样传入：
+
+```jsonc
+{
+  "plugins": [{
+    "package": "opencode-magpie-plugin",
+    "options": {
+      "agentID": "yuri",
+      "remote": {
+        "baseURL": "http://127.0.0.1:3425/v1",
+        "token": "{env:MAGPIE_AGENT_GATEWAY_KEY}"
+      }
+    }
+  }]
+}
+```
+
+环境变量里的值必须是 Magpie 实际分配给该 Agent 连接的 key，而不是上游服务凭据。插件保留 `remote.token` 原值，不会按 `agentID` 生成、改写或替换它。本机网关优先通过分配的 Agent key 确定归属，单改 advisory header 不能把直接 OpenCode 请求变成 Yuri 请求。未配置 `remote` 时，本机连接仍保持原有默认行为，不会因为 `agentID` 变化而换 key。
+
+本插件不自动扫描 Yuri 的状态文件，不改写 OpenCode 配置，也不猜测哪个 UI 使用了共享服务。CLI 若使用同一个 Provider/key，会共享这条连接的归属。早于 `opencode-magpie-plugin@0.6.0` 的固定安装不包含这项选项支持，需要包含本次改动的新构建；仅修改本仓库源码不会更新正在运行的安装。
+
 ### 本机网关
 
 未配置 `remote` 时，地址优先级：

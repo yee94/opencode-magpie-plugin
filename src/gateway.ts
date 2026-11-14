@@ -10,6 +10,7 @@ export const INSTALL_MESSAGE =
   '未安装 Magpie，请先从 https://usemagpie.ai/zh/ 安装并登录所需服务，再使用此插件。';
 
 export type GatewayConnection = {
+  agentID?: string;
   baseURL: string;
   token: string;
   remote: boolean;
@@ -18,10 +19,14 @@ export type GatewayConnection = {
 
 /** Explicit remote URLs are API bases, including any reverse-proxy prefix and version path. */
 export const resolveConnection = async (options?: unknown): Promise<GatewayConnection> => {
+  const agentID = (options as { agentID?: unknown } | undefined)?.agentID ?? 'opencode';
+  if (typeof agentID !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(agentID))
+    throw new Error('Magpie options.agentID must be a lowercase identifier (1-64 characters).');
   const remote = (options as { remote?: unknown } | undefined)?.remote;
   if (remote === undefined) {
     const localURL = await resolveBaseURL();
     return {
+      agentID,
       baseURL: `${localURL}/v1`,
       token: 'magpie',
       remote: false,
@@ -57,6 +62,7 @@ export const resolveConnection = async (options?: unknown): Promise<GatewayConne
   if (typeof value.token !== 'string' || !/^[\x21-\x7e]+$/.test(value.token))
     throw invalid('.token', '必须是非空 token，不能包含空格或控制字符');
   return {
+    agentID,
     baseURL: url.href.replace(/\/+$/, ''),
     token: value.token,
     remote: true,
@@ -228,12 +234,16 @@ export const ensureGateway = async (baseURL: string): Promise<void> => {
   }
 };
 
-export const fetchModels = async (baseURL: string, token = 'magpie'): Promise<MagpieModel[]> => {
+export const fetchModels = async (
+  baseURL: string,
+  token = 'magpie',
+  agentID = 'opencode',
+): Promise<MagpieModel[]> => {
   const response = await fetch(`${baseURL}/models`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Magpie-Prices': '1',
-      'X-Magpie-Agent': 'opencode',
+      'X-Magpie-Agent': agentID,
     },
     redirect: 'error',
     signal: AbortSignal.timeout(15_000),

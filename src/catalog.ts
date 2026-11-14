@@ -148,6 +148,7 @@ export type CatalogPresentation = {
 
 export type InventoryOptions = {
   apiKey?: string;
+  agentID?: string;
   /** The cached models.dev catalog, for models neither the built-in table nor Magpie prices. */
   catalog?: ModelsDevCatalog;
   fastModelIDs?: ReadonlySet<string>;
@@ -208,7 +209,7 @@ export const parsePresentation = (options: unknown): CatalogPresentation => {
   if (options === undefined) return { groups: [], order: new Map() };
   if (!isRecord(options)) throw invalidOptions('options', '必须是对象');
   for (const key of Object.keys(options)) {
-    if (key !== 'groups' && key !== 'order' && key !== 'remote')
+    if (key !== 'groups' && key !== 'order' && key !== 'remote' && key !== 'agentID')
       throw invalidOptions(`options.${key}`, '不是已知字段');
   }
   return {
@@ -321,7 +322,7 @@ export const buildInventory = (
           },
           headers: {
             Authorization: `Bearer ${apiKey}`,
-            'X-Magpie-Agent': 'opencode',
+            'X-Magpie-Agent': options.agentID ?? 'opencode',
           },
         },
         models: [],

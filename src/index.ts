@@ -17,12 +17,13 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
   // Parsed once. The first catalog and the 30s refresh close over the same presentation.
   const presentation = parsePresentation(ctx.options);
   const connection = await resolveConnection(ctx.options);
-  const { baseURL, token } = connection;
+  const { baseURL, token, agentID } = connection;
   const apiURL = new URL(baseURL);
   await connection.ensure();
   let catalog: CatalogCache = await loadCatalogCache();
-  let inventory = buildInventory(await fetchModels(baseURL, token), baseURL, {
+  let inventory = buildInventory(await fetchModels(baseURL, token, agentID), baseURL, {
     apiKey: token,
+    agentID,
     catalog: catalog.data,
     fastModelIDs: connection.remote ? undefined : await loadFastModelIDs(),
     presentation,
@@ -59,7 +60,7 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
           return;
         await connection.ensure();
         event.request.headers.set('X-Magpie-Session', event.sessionID);
-        event.request.headers.set('X-Magpie-Agent', 'opencode');
+        event.request.headers.set('X-Magpie-Agent', agentID ?? 'opencode');
       }),
     );
     await reloadProviderCatalog(ctx);
@@ -86,10 +87,11 @@ export const setupPlugin: Plugin2['setup'] = async (ctx) => {
     refreshing = true;
     try {
       await connection.ensure();
-      const rows = await fetchModels(baseURL, token);
+      const rows = await fetchModels(baseURL, token, agentID);
       catalog = await loadCatalogCache(hasUnpricedModel(inventory));
       const next = buildInventory(rows, baseURL, {
         apiKey: token,
+        agentID,
         catalog: catalog.data,
         fastModelIDs: connection.remote ? undefined : await loadFastModelIDs(),
         presentation,

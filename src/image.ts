@@ -14,7 +14,7 @@ export const listImageModels = async (
     headers: {
       Authorization: `Bearer ${connection.token}`,
       'X-Magpie-Drawers': '1',
-      'X-Magpie-Agent': 'opencode',
+      'X-Magpie-Agent': connection.agentID ?? 'opencode',
     },
     redirect: 'error',
     signal: AbortSignal.any([AbortSignal.timeout(15_000), ...(signal ? [signal] : [])]),
@@ -59,7 +59,7 @@ export const drawImage = async (
     headers: {
       Authorization: `Bearer ${connection.token}`,
       'Content-Type': 'application/json',
-      'X-Magpie-Agent': 'opencode',
+      'X-Magpie-Agent': connection.agentID ?? 'opencode',
     },
     // Without a model Magpie draws with the one chosen in its Settings.
     body: JSON.stringify({ ...input, n: 1, response_format: 'b64_json' }),
