@@ -69,6 +69,30 @@ describe('Yuri gateway adapter', () => {
   });
 
   it.each([
+    { id: 'anthropic' },
+    { id: 'claude', account: undefined },
+    { id: 'cursor', account: 'cursor' },
+    { id: 'workbuddy', account: 'workbuddy' },
+    { id: 'remote-magpie', account: 'remote' },
+    { id: 'openai', account: 'codex' },
+  ])('never rewrites Claude-model requests through another channel: %j', (provider) => {
+    const input = { ...request(), model: 'claude-sonnet-5-5' };
+    const before = JSON.stringify(input);
+    expect(onProvider(input, { ...context, provider })).toBeUndefined();
+    expect(JSON.stringify(input)).toBe(before);
+  });
+
+  it('isolates provider retries from the rewritten Claude subscription attempt', () => {
+    const input = request();
+    const before = JSON.stringify(input);
+    expect(onProvider(input, context).system).toBeUndefined();
+    expect(
+      onProvider(input, { ...context, provider: { id: 'cursor', account: 'cursor' } }),
+    ).toBeUndefined();
+    expect(JSON.stringify(input)).toBe(before);
+  });
+
+  it.each([
     { ...context, agent: 'other' },
     { ...context, protocol: 'openai' },
     { ...context, provider: { id: 'claude' } },

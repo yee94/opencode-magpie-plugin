@@ -26,6 +26,8 @@ importers:
 
   packages/magpie-yuri-adapter: {}
 
+  packages/opencode-magpie-plugin: {}
+
 packages:
 
   '@babel/generator@7.29.8':

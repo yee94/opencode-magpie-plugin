@@ -20,7 +20,9 @@
     }
   },
   "scripts": {
-    "check": "node --check yuri.middleware.js"
+    "lint": "biome check yuri.middleware.js adapter.test.js package.json",
+    "test": "vitest run adapter.test.js",
+    "check": "pnpm lint && pnpm test && node --check yuri.middleware.js"
   },
   "publishConfig": {
     "access": "public",

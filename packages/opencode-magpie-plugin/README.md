@@ -1,0 +1,425 @@
+# opencode-magpie-plugin
+
+[![npm](https://img.shields.io/npm/v/opencode-magpie-plugin)](https://www.npmjs.com/package/opencode-magpie-plugin)
+[![CI](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+**在 OpenCode V2 中动态使用 Magpie 的 Cursor、WorkBuddy 等服务，无需手写模型配置。**
+
+An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gateways. It discovers providers and models, supplies built-in token pricing, and starts an installed local gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
+
+## 包边界
+
+本包只负责 OpenCode 侧的模型发现、价格、工具和网关连接，不包含 Claude Code 订阅渠道的提示词改写。
+可选的 [`magpie-yuri-adapter`](../magpie-yuri-adapter/README.md) 是另一个独立 npm 包，安装在 Magpie 服务器端，不由本包依赖或自动启用。完整仓库结构见 [monorepo README](../../README.md)。
+
+### 为什么 Magpie 路由图显示 `magpie`，不是 OpenCode？
+
+**提示词里的身份和网关的调用方标签是两回事。** Adapter 不改请求头或认证信息，不能把路由图改名。
+
+Magpie 的调用方识别取决于 Agent 专用 Gateway Key、`User-Agent` 和转发元数据；在 Magpie → Magpie 的链路上，接收端也可能识别为 `magpie`。`X-Magpie-Agent` 是标签，不能无条件覆盖直接调用者的身份。特别是 `ctx.agent` 与路由图记录的转发来源不一定相同，不能只凭显示名推断插件是否命中。
+
+本插件现有 `options.agentID` 仅设置 `X-Magpie-Agent`，不会修改真实 `User-Agent` 或生成 Agent 专用 Key。参见下方的 [Agent 标签与原生归属](#agent-标签与原生归属)。要恢复正确的调用方显示，应检查正在使用的连接、Key 和转发头，而不是继续替换提示词中的品牌名。
+
+插件图标沿用 [Magpie 官网的小尺寸喜鹊 SVG](https://usemagpie.ai/img/magpie-small.svg)，保留原始轮廓，透明底、`currentColor` 单色渲染。源文件为 [`icon.svg`](icon.svg)，`package.json` 顶层 `icon` 内嵌同一图形的 data URI，不依赖远程图片。
+
+## 它解决什么问题
+
+Magpie 管理多个服务的账号、模型、协议转换和路由；这个插件负责把这些能力接入 OpenCode。
+
+```text
+OpenCode V2
+  ├─ /models：Cursor、WorkBuddy、Magpie（路由分组）
+  ├─ 模型能力、上下文限制、reasoning 档位和价格
+  └─ 原生 Chat / Responses / Anthropic 请求
+          ↓
+    本机或远程 Magpie 网关
+          ↓
+    Cursor / WorkBuddy / 其他已配置服务
+```
+
+- `opencode.jsonc` 只加载插件，不维护 `providers.models`。
+- 启动时发现目录，每 30 秒刷新；服务新增、模型下线都能反映到 OpenCode。
+- Provider 显示 Magpie 中的分组名称，而不是统一挤在一个 “Magpie” 下。路由分组默认仍归入 Magpie；要换呈现方式，在插件 `options` 里声明，不要改构建产物。
+- 内置独立价格表和模型名归一化逻辑，支持输入、输出、缓存读取与写入价格。
+- Magpie 已安装但未运行时自动启动；macOS 上找到 app 内的可执行文件时优先启动 app，保留路由页；未安装时给出安装链接。
+- 登录和服务凭据由 Magpie 管理，插件不需要复制上游 token。
+
+这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过所配置的 Magpie 网关**。
+
+## 前置条件
+
+1. 使用支持 `setup()`、`provider.transform` 和原生 provider runtime 的 **OpenCode V2**。不支持 V1。
+2. 从 [Magpie 官网](https://usemagpie.ai/zh/) 安装 Magpie，并在其中登录需要的服务、启用模型；使用远程网关时，本机无需安装。
+3. 网关对 OpenCode 服务进程可访问。本机默认地址 `http://127.0.0.1:3425`；远程连接见下方配置。
+
+包的 Node.js 要求为 **22 或更高**。macOS 上已验证插件加载与 Cursor / WorkBuddy 目录注册；Windows 和 Linux 的实际网关联调尚未验证。
+
+## 安装
+
+在全局 `~/.config/opencode/opencode.jsonc` 中加入插件；如果已有 `plugins` 数组，追加即可：
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-magpie-plugin"]
+}
+```
+
+也可以固定版本：
+
+```jsonc
+{
+    "plugins": ["opencode-magpie-plugin@0.7.1"]
+}
+```
+
+OpenCode 会从公网 npm 安装插件，不需要先全局安装 npm 包。不要同时加载本插件的 npm 版和本地 file 版。
+
+重启 OpenCode 服务，使全局配置生效：
+
+```sh
+opencode service restart
+```
+
+打开 `/plugins`，应看到 `magpie.providers`；打开 `/models`，选择 Cursor、WorkBuddy 等分组下的模型。
+
+### Provider 名称与模型 ID
+
+显示名与 Magpie 保持一致，只去掉上下文窗口前的空格（`Claude Opus 5.5 @ 1m` 显示为 `Claude Opus 5.5 @1m`）。模型 ID 不变。内部 ID 使用命名空间，避免覆盖另一个 Cursor / WorkBuddy 插件：
+
+| OpenCode 中的显示名 | 内部 provider ID | 示例模型引用 | 发给 Magpie 的 model |
+| --- | --- | --- | --- |
+| Cursor | `magpie-cursor` | `magpie-cursor/gpt-5.5` | `cursor/gpt-5.5` |
+| WorkBuddy | `magpie-workbuddy` | `magpie-workbuddy/claude-opus-4-6` | `workbuddy/claude-opus-4-6` |
+| Magpie Group | `magpie-group` | `magpie-group/auto` | `group/auto` |
+| Magpie Auto | `magpie-auto` | `magpie-auto/auto-glm-5.2` | `auto/glm-5.2` |
+| Group · Remote Magpie | `magpie-remote-magpie%2Fgroup` | `magpie-remote-magpie%2Fgroup/group/auto` | `remote-magpie/group/auto` |
+| Auto · Remote Magpie | `magpie-remote-magpie%2Fauto` | `magpie-remote-magpie%2Fauto/auto/glm-5.2` | `remote-magpie/auto/glm-5.2` |
+
+示例模型仅说明格式，实际列表取决于 Magpie 当前账号与配置。Magpie 自定义 provider ID 会原样映射为带 `magpie-` 前缀的 ID。
+
+网关中嵌套的远程来源按内层服务独立分组，例如 `remote-magpie/cursor/gpt-5.6-terra@272k` 显示在 **Cursor · Remote Magpie** 下，WorkBuddy、Codex、Astra 等各自分组，不再由首条模型的标签决定整个 remote 的名称。该示例的 provider ID 为 `magpie-remote-magpie%2Fcursor`，模型 ID 为 `cursor/gpt-5.6-terra@272k`，请求仍发送完整的 `remote-magpie/cursor/gpt-5.6-terra@272k`。中转可以有任意多层：模型 ID 取最后一段，其前面每一层都是独立分组，例如 `remote-magpie/vps-us/cursor/gpt-5.1` 显示在 **Cursor · VPS US · Remote Magpie** 下，provider ID 为 `magpie-remote-magpie%2Fvps-us%2Fcursor`。从旧版本升级后，原先选在合并 remote 分组中的模型需要重新选择。
+
+Routing group（例如 `group/auto`）会跨多个服务路由，因此不按 `owned_by` 或首个候选服务拆成 provider。本地 `group/` 与 `auto/` 分别归到 **Magpie Group**、**Magpie Auto**；远程嵌套的 `remote-magpie/group/` 与 `remote-magpie/auto/` 分别显示为 **Group · Remote Magpie**、**Auto · Remote Magpie**。默认路由组的 provider 名称只出现一次 Magpie，不再把 Group 和 Auto 显示成同名分组。远端未给模型标签时也遵循这一规则。发送时仍保留网关原始 id，价格只用 Magpie 给出的价格，不按成员猜测。
+
+本地默认路由组的 provider ID 从 `magpie-magpie` 拆为 `magpie-group` 与 `magpie-auto`，旧模型选择需要重新选择，`options.order` 的 key 也需对应更新。选择器中的模型 ID 和发给网关的 ID 不变；远程嵌套来源与自定义分桶的 provider ID 不变。
+
+### 目录呈现
+
+新版 Auto Group 的 `auto/<model>` 也按路由组处理，默认放在 `magpie-auto`（Magpie Auto），选择器 ID 为 `auto-<model>`，请求仍发送原始 `auto/<model>`。它按 `auto-<model>` 匹配下述 `groups.prefix`，因此可用 `auto-` 单独分桶；模型名中的点号保持原样。旧的 `group/` 格式继续支持，默认放在 `magpie-group`（Magpie Group），普通厂商模型不会被自动组覆盖。自动组及其 Fast 变体仅采用 Magpie 报价。
+
+路由组的成员由 Magpie 维护；这个插件只决定 OpenCode 选择器里怎么摆。分组、显示名和排序写在 `opencode.jsonc` 的插件 `options` 里，升级插件包之后仍在，不用再改 `dist`。空 options（或仍用字符串引用插件）和不声明时完全一样：`group/` 行都在 `magpie-group`，`auto/` 行都在 `magpie-auto`。
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "opencode-magpie-plugin",
+      "options": {
+        "groups": [
+          { "prefix": "adams-", "id": "adams", "name": "Adams" },
+          { "prefix": "combo-", "id": "combo", "name": "Combo" }
+        ],
+        "order": {
+          "magpie-adams": ["deepseek-v4.1-flash"],
+          "magpie-cursor": ["grok-4.7@500k"]
+        }
+      }
+    }
+  ]
+}
+```
+
+上面只是写法示例，不是插件默认值。语义：
+
+- 只对 id 以 `group/` 或 `auto/` 开头的行分桶。`groups` 按 `prefix` 最长优先匹配。命中后 provider 是 `magpie-<id>`，显示名是 `name`，选择器里的模型 id 去掉这段 prefix（`group/adams-deepseek-v4.1-flash` → `magpie-adams/deepseek-v4.1-flash`）。发给 Magpie 的仍是原始 id。没匹配到的组分别回到 `magpie-group`（Magpie Group）或 `magpie-auto`（Magpie Auto），保留各自默认的选择器模型 ID。厂商模型（`cursor/`、`workbuddy/`）不受 `groups` 影响。
+- OpenCode 同 provider 内按 `time.released` 倒序排。`order` 的 key 是最终 provider id，值是最终模型 id（已去前缀），越靠前越靠前。名单里没有的保持 0，退化为字母序。`-fast` 克隆继承父模型的权重并紧跟在后面；不要给它单独写一条，除非那个 `-fast` id 自己出现在 `order` 里。provider 之间的顺序控制不了。
+- 插件不隐藏模型。网关列出的都会出现，没标价的也一样。不想在 OpenCode 里看到某个组，在 Magpie 里处理：不用了就 `magpie group rm <id>`，只对 OpenCode 收窄就用 `magpie visible opencode …`。组的成员是厂商模型时，删掉一个组不会影响把同一批模型当成员的其他组。
+
+`options` 非法会在启动时失败，并写明出错字段的路径，不会静默忽略。改 options 后要重启 OpenCode 服务（`opencode service restart`）。热重载不一定会重新执行 `setup`，目录的 30 秒刷新也仍用启动时解析的那一份。
+
+## 自动发现与请求行为
+
+本机模式先检查网关根路径的 `name: "magpie"`，再请求 `/v1/models`。远程模式直接请求配置的 API baseURL 下的 `models`，不探测站点根路径，以兼容只暴露 API 的反向代理。请求携带 `X-Magpie-Prices: 1` 读取可用的网关价格扩展。
+
+目录映射保留模型的上下文窗口、最大输出、输入输出模态和 reasoning 档位。网关未提供有效上下文窗口时，默认使用 256K（256,000 tokens）。仅发现聊天目录；重复的无 provider 前缀别名、视频或其他非聊天专用模型不会注册为聊天模型。图片模型不进入聊天目录，改由下方的生图工具使用。
+
+思考强度读取新版 `reasoning_levels`，并兼容已安装版本常见的 `supported_reasoning_levels`（`{ effort }` 对象或字符串列表）。只有网关实际声明的档位才会出现，可在 OpenCode 的模型变体控件中选择，或使用 `provider/model#high` 这样的引用。`default` 保留服务默认行为，不额外生成档位；网关未提供档位时不会凭模型名称猜测。
+
+支持 Fast 的模型会额外显示一个 `-fast` 模型，例如 `composer-2.5` / `composer-2.5-fast`，显示名为 `Composer 2.5` / `Composer 2.5 Fast`。选择 Fast 后仍向 Magpie 发送原模型 ID，同时附带 `service_tier: "priority"`，并保留原有思考档位。检测依据是 `/v1/models` 的 `service_tiers` 包含 `priority`；本机模式在旧网关漏报时，补读本机 Magpie 配置目录的 `plugin-providers.json` 中 Cursor 的 `fast: true` 或插件的 `serviceTiers`。远程模式只采用远端模型目录的能力，不读取本机插件能力。仅扩展网关当前列出的模型，已有同名 `-fast` 模型优先，刷新时同步增删。
+
+Fast 模型优先采用内置表中明确登记的 Fast 费率及上下文档位；没有独立 Fast 费率时仍沿用原模型参考价，不代表 Fast 实际费率。缺少原模型报价时仍按未知价格处理。
+
+根据 `native_endpoints` 选择 OpenCode 内置 runtime：
+
+| Magpie 元数据 | OpenCode runtime |
+| --- | --- |
+| 包含 `/v1/messages` | `anthropic-compatible` |
+| 否则包含 `/v1/responses` | `openai-compatible/responses` |
+| 其他情况 | `openai-compatible`（Chat Completions） |
+
+消息、工具调用和工具结果由 OpenCode 原生 runtime 编码，再由 Magpie 转接。插件传递 `X-Magpie-Session` 保持会话标识，并指定 HTTP 传输。模型上游支持的完整能力仍取决于 Magpie 和相应服务。
+
+切换到 `openai` provider 时，插件会在请求编码前，将历史中超过 64 字符的工具调用 ID 稳定映射为 48 字符，并同步替换对应工具结果的 ID。这适用于 HTTP、WebSocket 及压缩请求，不修改持久化历史、工具参数或输出。实测范围见 [工具调用 ID 兼容性验证](docs/call-id-compatibility.md)。
+
+思考档位按所选协议编码：Chat 使用 `reasoning_effort`，Responses 使用 `reasoning.effort`，Anthropic 使用 `thinking.type=adaptive` 配合 `output_config.effort`；Anthropic 的 `none` 关闭 thinking。
+
+刷新成功时替换完整目录；刷新失败保留最近一次成功的目录。首次发现失败会报告初始化错误，不生成虚假的可用模型。
+
+## 网关地址与启动
+
+### 远程网关与反向代理
+
+在插件 `options.remote` 中配置 **API baseURL** 和 **Magpie Gateway Key**：
+
+```jsonc
+{
+  "plugins": [
+    {
+      "package": "opencode-magpie-plugin",
+      "options": {
+        "remote": {
+          "baseURL": "https://magpie.example.com/magpie/v1",
+          "token": "{env:MAGPIE_REMOTE_TOKEN}"
+        }
+      }
+    }
+  ]
+}
+```
+
+`token` 是远端 Magpie 的 **Gateway Key**（网关调用密钥），不是管理页面链接里的 `?k=` 登录密钥，也不是上游服务的 token。可直接填写密钥，或像示例一样由 OpenCode 从其服务进程环境变量展开。`remote` 可与 `groups`、`order` 同时配置。
+
+OpenCode V2 使用 `plugins` 数组中的 `{ "package": "…", "options": { … } }` 对象传入配置；`[packageName, options]` 是旧版 tuple 写法，V2 配置请使用上述对象形式。
+
+`baseURL` 必须包含实际使用的完整 API 前缀；插件只去掉末尾的 `/`，**不会补 `/v1`、截掉 path 或推测 rewrite 规则**：
+
+| 配置 | 请求模型目录 | Chat 请求 |
+| --- | --- | --- |
+| `https://host/v1` | `https://host/v1/models` | `https://host/v1/chat/completions` |
+| `https://host/magpie/v1/` | `https://host/magpie/v1/models` | `https://host/magpie/v1/chat/completions` |
+| `https://host/custom-api` | `https://host/custom-api/models` | `https://host/custom-api/chat/completions` |
+
+Responses 和 Anthropic 请求同样在该前缀下使用 `responses`、`messages`。例如 NGINX 把 `/magpie/` 转发到远端网关根路径时，填写 `https://magpie.example.com/magpie/v1`；外部的 `/magpie/v1/models` 对应上游 `/v1/models`。如果把 `/custom-api/` rewrite 到远端网关 `/v1/`，则填写 `https://host/custom-api`。地址指向 **Magpie API 网关**（默认端口 3425），而不是 Web 管理界面（默认端口 3430）。支持 HTTP/HTTPS；不接受 URL 内的用户名、密码、查询参数或片段。
+
+模型发现、30 秒刷新和推理都使用同一个远端与 token。远程模式不读取本机 Magpie 地址或 Fast 配置，也不会自动启动本机网关、失败后回退到本机。首次发现失败会报错；后续刷新失败保留最近成功的目录。目录请求不跟随重定向，反代应直接处理所配置的地址。
+
+### Agent 标签与原生归属
+
+`options.agentID` 是可选的请求标签，默认 `opencode`；支持 1–64 个小写字母、数字、`.`、`_`、`-`，且首位为字母或数字。它会用于模型发现、目录刷新、推理和生图请求的 `X-Magpie-Agent`，但**不会覆盖 OpenCode 的真实 User-Agent，也不是 UI 来源检测**。
+
+例如 [Yuri](https://useyuri.top) 通过 Magpie 的原生 Agent 连接获得网关 URL 和 key 后，可以把它们原样传入：
+
+```jsonc
+{
+  "plugins": [{
+    "package": "opencode-magpie-plugin",
+    "options": {
+      "agentID": "yuri",
+      "remote": {
+        "baseURL": "http://127.0.0.1:3425/v1",
+        "token": "{env:MAGPIE_AGENT_GATEWAY_KEY}"
+      }
+    }
+  }]
+}
+```
+
+环境变量里的值必须是 Magpie 实际分配给该 Agent 连接的 key，而不是上游服务凭据。插件保留 `remote.token` 原值，不会按 `agentID` 生成、改写或替换它。本机网关优先通过分配的 Agent key 确定归属，单改 advisory header 不能把直接 OpenCode 请求变成 Yuri 请求。未配置 `remote` 时，本机连接仍保持原有默认行为，不会因为 `agentID` 变化而换 key。
+
+本插件不自动扫描 Yuri 的状态文件，不改写 OpenCode 配置，也不猜测哪个 UI 使用了共享服务。CLI 若使用同一个 Provider/key，会共享这条连接的归属。早于 `opencode-magpie-plugin@0.6.0` 的固定安装不包含这项选项支持，需要包含本次改动的新构建；仅修改本仓库源码不会更新正在运行的安装。
+
+### 本机网关
+
+未配置 `remote` 时，地址优先级：
+
+1. OpenCode 服务进程中的 `MAGPIE_ADDR`。
+2. `$XDG_CONFIG_HOME/magpie/settings.json` 的 `port`。
+3. 未指定 XDG 路径时，使用 `~/.config/magpie/settings.json` 的 `port`。
+4. 默认端口 `3425`。
+
+`MAGPIE_ADDR` 使用 Magpie 自身的监听地址格式，例如：
+
+```sh
+MAGPIE_ADDR=127.0.0.1:3426 opencode --standalone
+```
+
+`0.0.0.0`、`::` 监听地址会转换为本机访问地址。`MAGPIE_ADDR` 只用于本机网关，远程服务器使用上面的 `options.remote`。共享服务模式下，在终端临时设置变量不一定会改变已经启动的 OpenCode 服务环境。
+
+网关不在线时，插件在 PATH、`~/.local/bin`、常见 Homebrew 路径以及 macOS 的 `Magpie.app` 中寻找可执行文件并把它拉起来。找到的是 `Magpie.app` 里的可执行文件时（安装器的软链会解析到真实路径），macOS 上优先启动 `magpie tray`——它同样提供网关，而且带窗口，路由页可以查看。app 非零退出或被信号终止后，才退回无窗口的 `magpie serve`。其他情况直接用 `serve`。Windows 通过 PATH / `~/.local/bin` 寻找 `magpie.exe`。如果无法找到，请安装 Magpie 或把它加入 OpenCode 服务的 PATH。
+
+启动后会等待网关就绪；app 明确异常退出时才降级到 `serve`。app 仍在启动或正常退出（可能已交给现有 app）时，超时会提示检查 app，不会另起 `serve` 抢占端口。请求前和目录刷新时也会检查网关。插件卸载不会关闭已启动的共享网关。若端口被其他服务占用，会报错而不是向其发送模型请求。
+
+便携版使用自定义端口时，请显式设置 `MAGPIE_ADDR`；插件不自动推断便携版的 data 目录。
+
+## 价格与费用统计
+
+### 价格从哪里来
+
+价格表完整内置于 [`src/model-pricing.ts`](src/model-pricing.ts)，包含模型别名、渠道后缀处理、版本回退与 provider 专属覆盖。它从原有共享价格模块迁移而来，之后随本项目版本独立维护；运行时不请求私有包、私有 registry 或其他仓库。
+
+普通模型使用以下顺序：
+
+1. 内置价格表，优先应用已识别 provider 的专属覆盖。
+2. 内置表未覆盖时，使用 Magpie 返回的 `magpie_price`。
+3. 普通模型仍缺价时，查询 models.dev 本地缓存：优先同 provider 的精确 ID，再查已识别厂商（OpenAI、Anthropic、DeepSeek、Google、xAI、Meta）的精确 ID 或 `canonical_model_id`。不跨版本猜价、不采用其他转售商报价、不使用订阅 plan 目录的零价。
+4. 所有来源均没有价格时，模型仍然列出、仍然可选，只是不填 `cost`。空费用不是 0 元，OpenCode 不会把它当成免费；实际费用以 Magpie 或服务账单为准。**路由组**同样如此：Magpie 只在组内全部成员同价时才给组报价，而路由组每一轮的成员由路由决定，成本本来就是一个区间而不是单一数字。路由分组仍只用 Magpie 报价，不根据 `auto-*` 名称推断成员价格。
+
+models.dev 缓存写入 `$XDG_CACHE_HOME/opencode-magpie-plugin/models.json`（默认 `~/.cache/opencode-magpie-plugin/models.json`）。首次可只读复用 Magpie、OpenCode 的 `models.json`；下载只写插件自己的目录。每次模型刷新检查缓存，超过 24 小时后台更新，缺价时可提前到 6 小时；同进程下载去重且失败后至少间隔 6 小时重试。首次下载和更新不阻塞模型发现，成功后下一次 30 秒刷新采用新目录；离线保留旧缓存。下载源为 `https://models.dev/api.json`，仍然零运行时依赖，基础价和 context 阶梯价一并传给 OpenCode。
+
+### 0.5.0
+
+- 本地默认路由组拆为 Magpie Group（`magpie-group`）与 Magpie Auto（`magpie-auto`）；旧 `magpie-magpie` 下的模型需重新选择，排序配置需更新 provider ID。
+- 远程嵌套路由组分别显示为 Group · Remote Magpie、Auto · Remote Magpie，provider 名称只出现一次 Magpie，并统一远程来源名的大小写。远程 provider ID、原始请求 ID、计价与 Fast 行为不变。
+
+### 0.4.2
+
+- 修正远端网关下路由组（`auto` / `group`）的 provider 显示名：不再显示为 "routing group"，改为 "Magpie"。
+
+### 0.4.1
+
+- 生图 skill 增加回退规则：某模型不可用（额度、积分、不支持的尺寸等）时不重试原模型，改用 `image_list` 中其他模型（优先换 provider），最多尝试三个模型。
+
+### 0.4.0
+
+- 新增生图能力：插件注册 `magpie.image_list`（列出 Magpie 可用的生图模型）和 `magpie.image_gen`（经 Magpie `/v1/images/generations` 出图，结果以 `![image](路径)` 返回），以及 skill `magpie-image-generate`。生图前由 Agent 加载该 skill。
+- 不传 `model` 时使用 Magpie 设置里选定的生图模型；图片保存在系统临时目录的 `magpie-images/` 下。
+
+### 0.3.0
+
+- 新增 `options.remote.baseURL` 与 `options.remote.token`，支持远端 Magpie 网关及带路径前缀的反向代理。
+- API baseURL 保留完整路径，不自动追加 `/v1`；模型发现、刷新和三种原生推理协议共用远端配置与 Gateway Key。
+- 远程模式不启动本机 Magpie，也不读取本机插件 Fast 能力；刷新失败仍保留最近成功的目录。
+
+### 0.2.0
+
+- 目录呈现改为插件 options：路由组的分桶、显示名和排序写在 `opencode.jsonc`，升级不再冲掉使用者自己的摆法。默认为空，与之前的目录一致。网关、价格表和 Fast 计价不变。
+
+### 0.1.9
+
+- 缺价模型不再从选择器里拿掉：仍然列出、仍然可选，只是不填 `cost`。空费用不是 0 元，也不代表实际免费。
+- `muse-*` 在 Magpie 未报价时，回退到 models.dev 的 Meta 官方价，不采用转售商报价。Muse Wonder 1.0 为输入/输出/缓存读 `$4/$20/$0.20`，Muse Spark 1.3 为 `$1.25/$4.25/$0.15`。单位为美元/百万 token。这是 Meta 标价，不是 Cursor 账单价。
+
+### 0.1.8
+
+- 修复上下文阶梯价丢失：保留内置表、models.dev 的 `tier.type=context` 与 Magpie 的 `above` 分档，交给 OpenCode 根据单次输入（含缓存）选择整单费率。
+- GPT-6 Astra 标准价为输入/输出/缓存读/缓存写 `$10/$50/$1/$12.5`，超过 272K 输入后为 `$20/$75/$2/$25`；Fast 两档均为标准价的两倍。单位为美元/百万 token。
+- 同步补齐 GPT-6 Sol、GPT-6 Luna、GPT-6.1 Sol 的 Standard/Fast 长上下文分档；GPT-6.1 Sol 独立使用 `$0.10` 缓存读取价，不再回退到旧 Sol 的 `$0.20`。依据 [OpenAI 官方价格表](https://developers.openai.com/api/docs/pricing)（2026-10-18）。
+- 自动派生 Fast 模型优先使用已登记的独立 Fast 价格；保留 provider 覆盖、未知价格及路由组原有策略。
+
+### 0.1.7
+
+- 根据模型声明的 Fast 能力自动派生 `-fast` 模型，使用原模型 ID 加 `service_tier: "priority"` 路由，并保留思考档位。
+- 兼容旧网关未透出的本地插件 Fast 元数据；已有同名模型优先，目录刷新同步增删。
+- 内置费率不变；派生 Fast 模型沿用原模型参考价，尚未接入独立 Fast 费率。
+
+### 0.1.6
+
+- 无报价路由组保持可选并保留原名；OpenCode 对这些请求的费用估算仍为 0，不代表实际免费，实际费用请查看 Magpie 或服务账单。
+- macOS 找到 Magpie app 时优先启动带窗口的网关，解析安装器软链；仅在 app 异常退出时降级到 `serve`，避免慢启动或交接现有 app 时被无窗口进程抢占端口。
+- 内置费率不变，尚未接入按请求实际路由成员计费。
+
+### 0.1.5
+
+新增 models.dev 缓存作为缺价兜底，不改动内置费率和 provider 覆盖。补充的价格来自 models.dev，对应目录更新后可能变化；以实际服务账单为准。
+
+Cursor 使用 `cursor` 覆盖，WorkBuddy 使用 `codebuddy` 覆盖；其他已识别服务按表中对应 provider 处理。Routing group 只用 Magpie 提供的价格，不按成员猜测。明确记录的零价格仍视为有效价格。
+
+所有价格单位都是 **美元 / 百万 token**。OpenCode 用这些单价计算请求费用。普通计费的概念公式为：
+
+```text
+费用 = (非缓存输入 × input + (可见输出 + 推理) × output
+      + 缓存读取 × cache.read + 缓存写入 × cache.write) / 1,000,000
+```
+
+缓存部分不能再次算入非缓存输入。不同协议的 token 字段由宿主 runtime 归一化；插件不重写 token 来凑费用。继承的价格记录缺少缓存单价时，当前映射将该项设为 0。
+
+### 准确性边界
+
+- 表中同时存在官方参考价、服务专属估算价和版本回退，**不是所有模型的实时账单价**。
+- Magpie 用户自定义价格不会覆盖已命中的内置价格表。
+- Routing group 可能动态切换成员，目录价格不保证等于实际被选成员的价格。
+- Cursor 等服务的 `usage.magpie_deferred` 是迟到用量，Magpie 会补记到账本；OpenCode 原生 runtime 不会因此修改历史费用。
+- 当前价格映射仍不支持 Magpie 独立的一小时缓存写入价。
+
+因此，OpenCode 费用适合观察 token 成本，**不能承诺与 Magpie 或订阅服务最终账单完全一致**。
+
+### 查看或复用价格表
+
+包提供公开的 `pricing` 子路径：
+
+```js
+import { getModelPricing, resolveModelPricingKey } from 'opencode-magpie-plugin/pricing';
+
+console.log(resolveModelPricingKey('claude-opus-4-6'));
+console.log(getModelPricing('claude-opus-4-6', 'cursor'));
+```
+
+`getModelPricing()` 对未知模型返回 `undefined`，不会自动填零；调用方获得的是副本，不会修改全局价格表。
+
+## 本地开发 / file 模式
+
+```sh
+git clone https://github.com/yee94/opencode-magpie-plugin.git
+cd opencode-magpie-plugin
+corepack enable
+pnpm install
+pnpm check
+```
+
+把配置中的 npm 包替换为构建目录的 URL：
+
+```jsonc
+{
+  "plugins": ["file:///absolute/path/opencode-magpie-plugin/packages/opencode-magpie-plugin/dist"]
+}
+```
+
+**必须指向 `dist` 目录，不是 `dist/index.mjs` 文件，也不是仓库根目录。** V2 本地目录加载器寻找目录内的 `server` / `index` 入口；直接填写文件路径会被忽略并记录 `configured plugin path must be a directory`。
+
+修改源码后在仓库根目录执行 `pnpm --filter opencode-magpie-plugin build`，再重新加载 OpenCode 服务。
+
+## 排查
+
+| 现象 | 检查项 |
+| --- | --- |
+| `/plugins` 没有 `magpie.providers` | 全局配置是否被当前服务读取；file 模式是否填写 `dist` 目录并已构建；查看 OpenCode 日志 |
+| 提示未安装 Magpie | 安装 [Magpie](https://usemagpie.ai/zh/)，确认服务进程 PATH 可以找到它 |
+| 启动超时 | 手动执行 `magpie serve` 查看错误，检查监听端口 |
+| 插件已加载但没有模型 | 在 Magpie 登录并启用服务，检查 `/v1/models` 是否有模型；缺价不再隐藏模型 |
+| 添加模型后没出现 | 等待下一个 30 秒刷新周期；初次初始化失败则重载 OpenCode |
+| 改了 options 但分组没变 | 重启 OpenCode 服务；reload 不一定重新执行 setup |
+| profile 报 Model unavailable | id 是否和 `groups` 一致（去前缀后的 id）；该组是否已在 Magpie 里删掉 |
+| 原有 Cursor 与新 Cursor 同时出现 | 两个插件可同时存在；Magpie 的内部 ID 是 `magpie-cursor` |
+| 费用和实际账单不同 | 查看上面的价格优先级、迟到用量和阶梯价格边界 |
+
+本机目录检查（不会调用模型）：
+
+```sh
+curl http://127.0.0.1:3425/
+curl -H 'Authorization: Bearer magpie' -H 'X-Magpie-Prices: 1' \
+  http://127.0.0.1:3425/v1/models
+```
+
+这里的 `magpie` 是本机网关占位 key，不是上游账号 token。
+
+## 测试与发布
+
+```sh
+pnpm --filter opencode-magpie-plugin check
+pnpm --dir packages/opencode-magpie-plugin pack
+```
+
+维护者可在 Release 工作流选择两个包一起发布，也可推送 `opencode-magpie-plugin/v<本包版本>` 标签只发布本包（兼容旧 `v<版本>` 标签）。正式版使用 `latest`，预发布版使用 `next`。完整步骤、认证要求与失败恢复见 [发布指南](../../docs/releasing.md)。
+
+测试覆盖目录分组与替换、options 呈现（分桶、排序、非法配置）、wire model ID、协议元数据、价格归一化与覆盖、未知价格、会话头、网关身份检查、自动启动与并发去重、未安装提示、刷新失败和清理。测试不消耗真实服务额度。
+
+只发布 `dist`、README 和许可证，**没有 runtime dependencies**。价格表变更时应更新相应测试，并在 release 说明价格来源与变化。
+
+## 相关项目与许可证
+
+- [Magpie](https://usemagpie.ai/)：账号、网关、路由和上游转接。
+- [OpenCode V2 plugins](https://opencode.ai/v2/docs/build/plugins)：插件生命周期与动态 provider API。
+
+这是独立集成项目，不是 Magpie 或 OpenCode 官方插件。插件代码采用 [MIT](LICENSE)；Magpie 与各上游服务遵循各自的许可证和服务条款。

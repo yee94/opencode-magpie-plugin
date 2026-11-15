@@ -2,25 +2,49 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', 'opencode-magpie-plugin/v*', 'magpie-yuri-adapter/v*']
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        type: choice
+        default: all
+        options: [all, opencode-magpie-plugin, magpie-yuri-adapter]
 
 permissions:
   contents: read
 
-concurrency:
-  group: npm-release
-  cancel-in-progress: false
-
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.plan.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select packages
+        id: plan
+        env:
+          REQUESTED_PACKAGE: ${{ inputs.package || 'all' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          import { releasePackages } from './scripts/release-metadata.mjs';
+          const packages = releasePackages(process.env.GITHUB_EVENT_NAME, process.env.GITHUB_REF_NAME, process.env.REQUESTED_PACKAGE);
+          appendFileSync(process.env.GITHUB_OUTPUT, `packages=${JSON.stringify({ include: packages })}\n`);
+          JS
   publish:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        directory: ['.', 'packages/magpie-yuri-adapter']
+      matrix: ${{ fromJSON(needs.plan.outputs.packages) }}
+    concurrency:
+      group: npm-release-${{ matrix.name }}
+      cancel-in-progress: false
     env:
       PACKAGE_DIR: ${{ matrix.directory }}
+      PACKAGE_NAME: ${{ matrix.name }}
     permissions:
       contents: write
     steps:
@@ -37,25 +61,16 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
-          const root = JSON.parse(readFileSync('package.json', 'utf8'));
+          import { releaseTag } from './scripts/release-metadata.mjs';
           const pkg = JSON.parse(readFileSync(`${process.env.PACKAGE_DIR}/package.json`, 'utf8'));
-          const tag = process.env.GITHUB_REF_NAME;
-          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$/;
-          if (!semver.test(root.version) || tag !== `v${root.version}` || !semver.test(pkg.version)) {
-            throw new Error(`Tag ${tag} must equal v${root.version}; package versions must be SemVer without build metadata`);
-          }
-          if (pkg.private || Object.keys(pkg.dependencies ?? {}).length || Object.keys(pkg.optionalDependencies ?? {}).length) {
-            throw new Error('Public packages must have zero runtime dependencies');
-          }
-          if (!root.version.includes('-') && pkg.version.includes('-')) {
-            throw new Error('A stable release cannot publish a prerelease package to latest');
-          }
+          const tag = releaseTag(pkg, process.env.GITHUB_EVENT_NAME, process.env.GITHUB_REF_NAME);
           appendFileSync(process.env.GITHUB_OUTPUT,
-            `version=${pkg.version}\ndist-tag=${root.version.includes('-') ? 'next' : 'latest'}\n`);
+            `version=${pkg.version}\nrelease-tag=${tag}\ndist-tag=${pkg.version.includes('-') ? 'next' : 'latest'}\n`);
           JS
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - run: pnpm test:release
+      - run: pnpm --filter "$PACKAGE_NAME" check
 
       - name: Pack and check existing version
         id: artifact
@@ -111,24 +126,19 @@ jobs:
             assertPublishedArtifact(published, { ...pkg, integrity: process.env.EXPECTED_INTEGRITY });
             console.log(`Verified ${published.name}@${published.version}: public, zero runtime dependencies`);
           };
-          await verify(12);
+          await verify(60);
           JS
 
-  github-release:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ steps.release.outputs.release-tag }}
+          RELEASE_SHA: ${{ github.sha }}
+          DIST_TAG: ${{ steps.release.outputs.dist-tag }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             exit 0
           fi
           flags=()
-          if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$RELEASE_TAG" --verify-tag --generate-notes "${flags[@]}"
+          if [ "$DIST_TAG" = next ]; then flags+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" --target "$RELEASE_SHA" --generate-notes "${flags[@]}"

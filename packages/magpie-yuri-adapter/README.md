@@ -3,9 +3,13 @@
 Magpie 网关中间件，使用 `onProvider` 处理 Claude 订阅桥接前的 Anthropic 请求。
 纯 JavaScript，无运行时依赖、网络调用或 Node API，可以直接交给 Magpie 的 moejs 加载。
 
+这是独立 npm 包，不导入或依赖 `opencode-magpie-plugin`，也不会被它自动启用。
+本包只负责 Claude Code 订阅渠道的请求改写；模型发现和其他 provider 的处理不属于本包。
+
 ## 行为
 
 - 仅处理 `ctx.agent` 为 `opencode` / `yuri`、`ctx.protocol` 为 `anthropic`、`ctx.provider.account` 为 `claude` 的请求。服务 ID 可以任意命名。
+- 渠道判定使用 Claude Code 订阅类型，不使用 provider 名称或 Claude 模型名。Anthropic API Key、Cursor / WorkBuddy 提供的 Claude 模型、Codex 和其他 provider 原样通过。路由重试时，每个 provider 从原请求独立转换，不污染下一次尝试。
 - 把固定身份句 `You are an AI agent running in OpenCode, a coding agent harness.` 改为 Yuri。不是全文替换：路径、URL、包名、工具定义和历史内容均保留。
 - 默认将调用方 system 文本块按原顺序前置到第一条 user 消息，保留块元数据。Claude Code 原生 system 仍由 Magpie 管理。
 - 转换不修改输入，输出确定；重复处理已搬移请求不会重复插入。工具调用和结果不重命名。
@@ -91,7 +95,7 @@ magpie plugin rm magpie-yuri-adapter
 
 ## 验证
 
-仓库根目录 `pnpm check` 包含本包测试与语法检查。本机检查不调用模型。
+在仓库根目录运行 `pnpm check:adapter`，或在本包目录运行 `pnpm check`，独立执行本包 lint、测试与语法检查；不需要构建 OpenCode 包。仓库根目录 `pnpm check` 则检查两个包。本机检查不调用模型。
 真实请求、工具回传、TUI / `-p` 和缓存对照应在获准的 SSH 服务器执行。
 
 2026-11-15 的服务器联调观察到：真实 OpenCode 请求约 47K 字符 system、18 个工具，经转换后启动 `interactive mode`，检查时未出现 `-p` 回退。此前未命中 adapter 的请求则出现了回退。
@@ -103,4 +107,6 @@ Magpie 日志中：
 - `asked again as claude -p (#4503)` 或 `not the interactive mode`：发生回退。
 - 不能仅凭有一条 TUI 启动日志就判定整轮成功，需检查完整请求的后续日志。
 
-仓库 `v*` 标签发布流程分别打包、发布并校验根插件和本包，两者均成功后才创建 GitHub Release。详见根目录 [发布流程](../../docs/releasing.md)。
+本包以 `magpie-yuri-adapter/v<本包版本>` 标签独立发布，例如 `magpie-yuri-adapter/v0.1.0`，也可在 Release 工作流单独选择本包。
+工作流选择 `all` 时会同时发布两个独立 npm 包，各自执行检查、打包、上传、校验和 GitHub Release 创建。
+根目录是 private workspace，不再作为业务包发布。详见 [发布流程](../../docs/releasing.md)。
