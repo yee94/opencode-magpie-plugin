@@ -67,15 +67,20 @@ describe('independent workspace release planning', () => {
   it('dispatches both package directories without publishing the private root', () => {
     expect(releasePackages('workflow_dispatch', 'main')).toEqual([
       { name: 'opencode-magpie-plugin', directory: 'packages/opencode-magpie-plugin' },
-      { name: 'claude-opencode-adapter', directory: 'packages/claude-opencode-adapter' },
+      {
+        name: 'magpie-claude-opencode-adapter',
+        directory: 'packages/magpie-claude-opencode-adapter',
+      },
     ]);
-    expect(releasePackages('workflow_dispatch', 'main', 'claude-opencode-adapter')).toHaveLength(1);
+    expect(
+      releasePackages('workflow_dispatch', 'main', 'magpie-claude-opencode-adapter'),
+    ).toHaveLength(1);
   });
 
   it.each([
     ['v0.7.1', 'opencode-magpie-plugin'],
     ['opencode-magpie-plugin/v0.7.1', 'opencode-magpie-plugin'],
-    ['claude-opencode-adapter/v0.1.0', 'claude-opencode-adapter'],
+    ['magpie-claude-opencode-adapter/v0.1.0', 'magpie-claude-opencode-adapter'],
   ])('selects only the owning package for %s', (tag, name) => {
     const selected = releasePackages('push', tag);
     expect(selected).toHaveLength(1);
@@ -88,25 +93,25 @@ describe('independent workspace release planning', () => {
     );
     expect(
       releaseTag(
-        { name: 'claude-opencode-adapter', version: '0.1.0' },
+        { name: 'magpie-claude-opencode-adapter', version: '0.1.0' },
         'workflow_dispatch',
         'main',
       ),
-    ).toBe('claude-opencode-adapter/v0.1.0');
+    ).toBe('magpie-claude-opencode-adapter/v0.1.0');
     expect(
       releaseTag(
-        { name: 'claude-opencode-adapter', version: '0.2.0-beta.1' },
+        { name: 'magpie-claude-opencode-adapter', version: '0.2.0-beta.1' },
         'workflow_dispatch',
         'main',
       ),
-    ).toBe('claude-opencode-adapter/v0.2.0-beta.1');
+    ).toBe('magpie-claude-opencode-adapter/v0.2.0-beta.1');
   });
 
   it('rejects unknown selections, wrong tags, private packages and runtime dependencies', () => {
     expect(() => releasePackages('workflow_dispatch', 'main', 'unknown')).toThrow();
     expect(() => releasePackages('push', 'unknown/v1.0.0')).toThrow();
     expect(() =>
-      releaseTag({ name: 'claude-opencode-adapter', version: '0.1.0' }, 'push', 'v0.1.0'),
+      releaseTag({ name: 'magpie-claude-opencode-adapter', version: '0.1.0' }, 'push', 'v0.1.0'),
     ).toThrow('must match');
     for (const override of [
       { private: true },
@@ -116,7 +121,7 @@ describe('independent workspace release planning', () => {
     ]) {
       expect(() =>
         releaseTag(
-          { name: 'claude-opencode-adapter', version: '0.1.0', ...override },
+          { name: 'magpie-claude-opencode-adapter', version: '0.1.0', ...override },
           'workflow_dispatch',
           'main',
         ),

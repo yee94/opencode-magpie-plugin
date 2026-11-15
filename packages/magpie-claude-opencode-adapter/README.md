@@ -1,4 +1,4 @@
-# Claude OpenCode Adapter
+# Magpie Claude OpenCode Adapter
 
 **针对 OpenCode 经 Magpie 使用 Claude Code 订阅时，TUI 请求被当作第三方 Agent 请求拒绝的问题。**
 
@@ -25,8 +25,8 @@ Magpie 用真实 Claude Code 承接订阅请求，但在原生提示词后加入
 当前先将本目录复制到服务器，以单文件方式加载：
 
 ```sh
-magpie plugin add /absolute/path/to/claude-opencode-adapter/adapter.middleware.js
-magpie plugin options /absolute/path/to/claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js
+magpie plugin options /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 这是 Magpie 插件，不要放进 OpenCode 的 `plugins` 数组。OpenCode 端的模型发现仍由独立的 `opencode-magpie-plugin` 负责；adapter 不处理登录、OAuth、模型发现或服务启动。
@@ -36,8 +36,8 @@ magpie plugin options /absolute/path/to/claude-opencode-adapter/adapter.middlewa
 首次 npm 发布完成后，可改用包安装：
 
 ```sh
-magpie plugin add npm:claude-opencode-adapter@0.1.0
-magpie plugin options claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add npm:magpie-claude-opencode-adapter@0.1.0
+magpie plugin options magpie-claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 单文件安装使用完整路径作为插件标识，设置选项、启停和删除时使用同一路径；
@@ -62,7 +62,7 @@ magpie plugin options claude-opencode-adapter '{"agents":["opencode"],"placement
 此时默认匹配不会生效，需根据实际调用方选择：
 
 ```sh
-magpie plugin options claude-opencode-adapter '{"agents":["opencode","magpie"],"placement":"user","renameIdentity":true}'
+magpie plugin options magpie-claude-opencode-adapter '{"agents":["opencode","magpie"],"placement":"user","renameIdentity":true}'
 ```
 
 仅在确认需要时加入 `magpie`：这会影响所有匹配该标识的 Claude 订阅请求，而不只是 OpenCode。
@@ -72,17 +72,17 @@ magpie plugin options claude-opencode-adapter '{"agents":["opencode","magpie"],"
 
 ```sh
 # 暂时关闭（保留安装及选项）
-magpie plugin off claude-opencode-adapter
-magpie plugin on claude-opencode-adapter
+magpie plugin off magpie-claude-opencode-adapter
+magpie plugin on magpie-claude-opencode-adapter
 
 # 保留原 system 位置，只替换身份句
-magpie plugin options claude-opencode-adapter '{"placement":"system","renameIdentity":true}'
+magpie plugin options magpie-claude-opencode-adapter '{"placement":"system","renameIdentity":true}'
 
 # 搬移但不替换身份句
-magpie plugin options claude-opencode-adapter '{"placement":"user","renameIdentity":false}'
+magpie plugin options magpie-claude-opencode-adapter '{"placement":"user","renameIdentity":false}'
 
 # 卸载
-magpie plugin rm claude-opencode-adapter
+magpie plugin rm magpie-claude-opencode-adapter
 ```
 
 每次设置 options 都应提交完整的所需配置；例如链式网关测试时须同时保留 `agents`。
@@ -110,6 +110,6 @@ Magpie 日志中：
 - `asked again as claude -p (#4503)` 或 `not the interactive mode`：发生回退。
 - 不能仅凭有一条 TUI 启动日志就判定整轮成功，需检查完整请求的后续日志。
 
-本包以 `claude-opencode-adapter/v<本包版本>` 标签独立发布，例如 `claude-opencode-adapter/v0.1.0`，也可在 Release 工作流单独选择本包。
+本包以 `magpie-claude-opencode-adapter/v<本包版本>` 标签独立发布，例如 `magpie-claude-opencode-adapter/v0.1.0`，也可在 Release 工作流单独选择本包。
 工作流选择 `all` 时会同时发布两个独立 npm 包，各自执行检查、打包、上传、校验和 GitHub Release 创建。
 根目录是 private workspace，不再作为业务包发布。详见 [发布流程](../../docs/releasing.md)。

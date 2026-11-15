@@ -26,7 +26,7 @@
 
 另一类问题不在模型列表，而在请求本身：OpenCode 经 Magpie 使用 **Claude Code 订阅渠道**时，附加的第三方 Agent 指令可能被拒绝，Magpie 随后会从 TUI 回退到 `claude -p`。
 
-**`claude-opencode-adapter` 是针对这条链路的实验性适配器：**
+**`magpie-claude-opencode-adapter` 是针对这条链路的实验性适配器：**
 
 - 在 Magpie 将请求交给 Claude Code 前，把 OpenCode 的 system 指令移到首条 user 消息。
 - 将固定的 OpenCode 身份句改为中性编码助手描述，不替换成其他产品品牌。
@@ -40,7 +40,7 @@
 | 你的需求 | 使用哪个包 | 装在哪里 |
 | --- | --- | --- |
 | 在 OpenCode 中使用 Magpie 的模型，自动同步列表、分组、能力和价格 | [`opencode-magpie-plugin`](packages/opencode-magpie-plugin/README.md) | 运行 OpenCode 服务的机器 |
-| 排查 OpenCode → Magpie → Claude Code 订阅的 TUI 拒绝／回退问题 | [`claude-opencode-adapter`](packages/claude-opencode-adapter/README.md) | 实际运行 Claude Code 订阅桥接的 Magpie 机器 |
+| 排查 OpenCode → Magpie → Claude Code 订阅的 TUI 拒绝／回退问题 | [`magpie-claude-opencode-adapter`](packages/magpie-claude-opencode-adapter/README.md) | 实际运行 Claude Code 订阅桥接的 Magpie 机器 |
 
 **普通接入只装第一个。** 两个包独立安装，第二个不会随第一个自动启用。
 如果 Magpie 自带的接入已经满足你的使用需求，也不必额外安装本项目。
@@ -62,10 +62,10 @@
 
 - [远程网关、分组和排序配置](packages/opencode-magpie-plugin/README.md)
 - [模型价格与费用估算说明](packages/opencode-magpie-plugin/README.md#价格与费用统计)
-- [Claude Code 订阅适配器：安装、匹配范围和 TUI 诊断](packages/claude-opencode-adapter/README.md)
+- [Claude Code 订阅适配器：安装、匹配范围和 TUI 诊断](packages/magpie-claude-opencode-adapter/README.md)
 
 **发布状态：**`opencode-magpie-plugin` 已发布到 [npm](https://www.npmjs.com/package/opencode-magpie-plugin)。
-`claude-opencode-adapter` 尚未完成首次 npm 发布，目前请按其文档从源码安装；它仍处于实验验证阶段。
+`magpie-claude-opencode-adapter` 尚未完成首次 npm 发布，目前请按其文档从源码安装；它仍处于实验验证阶段。
 
 ## 和 Magpie 自带接入是什么关系？
 
@@ -85,7 +85,7 @@ Magpie 已经提供 OpenCode 接入。本项目不是用来替代它，而是把
 
 ```text
 packages/opencode-magpie-plugin/   # OpenCode 模型接入插件
-packages/claude-opencode-adapter/  # Claude Code 订阅渠道适配器
+packages/magpie-claude-opencode-adapter/  # Claude Code 订阅渠道适配器
 ```
 
 ```sh

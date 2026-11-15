@@ -32,7 +32,7 @@ OpenCode V2
 
 这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过所配置的 Magpie 网关**。
 
-如果你遇到的是 Claude Code 订阅渠道的 TUI 请求被拒绝，请看另一个独立包 [`claude-opencode-adapter`](../claude-opencode-adapter/README.md)。本包不包含那段提示词改写，也不会自动启用它。
+如果你遇到的是 Claude Code 订阅渠道的 TUI 请求被拒绝，请看另一个独立包 [`magpie-claude-opencode-adapter`](../magpie-claude-opencode-adapter/README.md)。本包不包含那段提示词改写，也不会自动启用它。
 
 ## 前置条件
 
