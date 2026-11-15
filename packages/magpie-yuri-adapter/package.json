@@ -1,0 +1,46 @@
+{
+  "name": "magpie-yuri-adapter",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Yuri prompt placement middleware for the Magpie Claude subscription bridge",
+  "exports": "./yuri.middleware.js",
+  "files": [
+    "yuri.middleware.js",
+    "README.md"
+  ],
+  "magpie": {
+    "middleware": "./yuri.middleware.js",
+    "options": {
+      "agents": [
+        "opencode",
+        "yuri"
+      ],
+      "placement": "user",
+      "renameIdentity": true
+    }
+  },
+  "scripts": {
+    "check": "node --check yuri.middleware.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yee94/opencode-magpie-plugin.git",
+    "directory": "packages/magpie-yuri-adapter"
+  },
+  "homepage": "https://github.com/yee94/opencode-magpie-plugin/tree/main/packages/magpie-yuri-adapter#readme",
+  "bugs": {
+    "url": "https://github.com/yee94/opencode-magpie-plugin/issues"
+  },
+  "keywords": [
+    "magpie",
+    "yuri",
+    "opencode",
+    "middleware",
+    "claude"
+  ],
+  "license": "MIT"
+}

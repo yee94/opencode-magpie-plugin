@@ -15,6 +15,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: ['.', 'packages/magpie-yuri-adapter']
+    env:
+      PACKAGE_DIR: ${{ matrix.directory }}
     permissions:
       contents: write
     steps:
@@ -31,17 +37,21 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
-          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const root = JSON.parse(readFileSync('package.json', 'utf8'));
+          const pkg = JSON.parse(readFileSync(`${process.env.PACKAGE_DIR}/package.json`, 'utf8'));
           const tag = process.env.GITHUB_REF_NAME;
           const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$/;
-          if (!semver.test(pkg.version) || tag !== `v${pkg.version}`) {
-            throw new Error(`Tag ${tag} must equal v${pkg.version} (SemVer without build metadata)`);
+          if (!semver.test(root.version) || tag !== `v${root.version}` || !semver.test(pkg.version)) {
+            throw new Error(`Tag ${tag} must equal v${root.version}; package versions must be SemVer without build metadata`);
           }
-          if (pkg.private || Object.keys(pkg.dependencies ?? {}).length) {
-            throw new Error('The public plugin must have zero runtime dependencies');
+          if (pkg.private || Object.keys(pkg.dependencies ?? {}).length || Object.keys(pkg.optionalDependencies ?? {}).length) {
+            throw new Error('Public packages must have zero runtime dependencies');
+          }
+          if (!root.version.includes('-') && pkg.version.includes('-')) {
+            throw new Error('A stable release cannot publish a prerelease package to latest');
           }
           appendFileSync(process.env.GITHUB_OUTPUT,
-            `version=${pkg.version}\ndist-tag=${pkg.version.includes('-') ? 'next' : 'latest'}\n`);
+            `version=${pkg.version}\ndist-tag=${root.version.includes('-') ? 'next' : 'latest'}\n`);
           JS
 
       - run: pnpm install --frozen-lockfile
@@ -50,12 +60,12 @@ jobs:
       - name: Pack and check existing version
         id: artifact
         run: |
-          pnpm pack --pack-destination "$RUNNER_TEMP/magpie-release"
+          pnpm --dir "$PACKAGE_DIR" pack --pack-destination "$RUNNER_TEMP/magpie-release"
           node --input-type=module <<'JS'
           import { readFileSync, appendFileSync } from 'node:fs';
           import { join } from 'node:path';
           import { tarballIntegrity, assertPublishedArtifact } from './scripts/release-metadata.mjs';
-          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const pkg = JSON.parse(readFileSync(`${process.env.PACKAGE_DIR}/package.json`, 'utf8'));
           const tarball = join(process.env.RUNNER_TEMP, 'magpie-release', `${pkg.name}-${pkg.version}.tgz`);
           const integrity = tarballIntegrity(readFileSync(tarball));
           const response = await fetch(`https://registry.npmjs.org/${pkg.name}/${pkg.version}`);
@@ -87,7 +97,7 @@ jobs:
           import { readFileSync } from 'node:fs';
           import { setTimeout } from 'node:timers/promises';
           import { assertPublishedArtifact } from './scripts/release-metadata.mjs';
-          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const pkg = JSON.parse(readFileSync(`${process.env.PACKAGE_DIR}/package.json`, 'utf8'));
           const verify = async (remaining) => {
             const response = await fetch(`https://registry.npmjs.org/${pkg.name}/${pkg.version}`);
             if (!response.ok) {
@@ -104,15 +114,21 @@ jobs:
           await verify(12);
           JS
 
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-          DIST_TAG: ${{ steps.release.outputs.dist-tag }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             exit 0
           fi
           flags=()
-          if [ "$DIST_TAG" = next ]; then flags+=(--prerelease); fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
           gh release create "$RELEASE_TAG" --verify-tag --generate-notes "${flags[@]}"

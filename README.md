@@ -8,6 +8,54 @@
 
 An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gateways. It discovers providers and models, supplies built-in token pricing, and starts an installed local gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
 
+## 两个包，安装在不同位置
+
+本仓库是 pnpm workspace，共用锁文件、测试和发布流程。根目录保留现有 OpenCode 插件的包名和导出，`packages/*` 放置独立的网关插件：
+
+| npm 包 | 安装位置 | 职责 |
+| --- | --- | --- |
+| [`opencode-magpie-plugin`](https://www.npmjs.com/package/opencode-magpie-plugin) | OpenCode 服务所在机器 | 发现 Magpie 模型、注册 provider、补充价格和连接网关 |
+| [`magpie-yuri-adapter`](https://www.npmjs.com/package/magpie-yuri-adapter) | 实际运行 Claude 订阅桥接的 Magpie 机器 | 在 `onProvider` 阶段调整调用方指令的位置和固定身份句 |
+
+普通模型发现只需要第一个包。第二个包是可选中间件，**不会随第一个包自动安装或启用**，也不是 OpenCode OAuth 插件。两者均无运行时 npm 依赖。
+
+```text
+OpenCode / Yuri
+  → opencode-magpie-plugin
+  → 本机 Magpie 或远程 Magpie
+  → magpie-yuri-adapter（可选；位于 Claude 订阅桥接所在网关）
+  → Magpie 驱动真实 Claude Code → 上游服务
+```
+
+### 可选：安装 Yuri 网关中间件
+
+在运行 Claude 订阅桥接的服务器上执行，不是在 OpenCode 的 `plugins` 数组里添加它：
+
+```sh
+magpie plugin add npm:magpie-yuri-adapter@0.1.0
+magpie plugin options magpie-yuri-adapter '{"agents":["opencode","yuri"],"placement":"user","renameIdentity":true}'
+```
+
+它将调用方 system 文本移到首条 user 消息，并把固定的 OpenCode 身份句改成 Yuri；不复制指令，不改工具定义、工具调用 ID、历史消息、请求头、Key 或 Claude Code 原生 system。
+
+默认只匹配 `opencode` / `yuri` 调用方及 Claude 订阅的 Anthropic 请求。如果经过另一层 Magpie 后实际 `ctx.agent` 是 `magpie`，需要显式选择：
+
+```sh
+magpie plugin options magpie-yuri-adapter '{"agents":["opencode","yuri","magpie"],"placement":"user","renameIdentity":true}'
+```
+
+这会扩大匹配范围到该网关识别为 `magpie` 的 Claude 订阅请求，不会自动辨认它们原本来自哪个应用。安装前应移除或停用旧的单文件 adapter，避免两份插件同时运行。
+
+移动指令会改变指令优先级和缓存前缀；**不保证 TUI 一定被接受、不保证没有 `-p` 回退，也不保证订阅额度或收费方式**。判断依据是服务器日志，而不是 HTTP 200。完整选项、Token 影响、诊断和卸载见 [adapter README](packages/magpie-yuri-adapter/README.md)。
+
+### 为什么 Magpie 路由图显示 `magpie`，不是 OpenCode？
+
+**提示词里的身份和网关的调用方标签是两回事。** Adapter 不改请求头或认证信息，不能把路由图改名。
+
+Magpie 的调用方识别取决于 Agent 专用 Gateway Key、`User-Agent` 和转发元数据；在 Magpie → Magpie 的链路上，接收端也可能识别为 `magpie`。`X-Magpie-Agent` 是标签，不能无条件覆盖直接调用者的身份。特别是 `ctx.agent` 与路由图记录的转发来源不一定相同，不能只凭显示名推断插件是否命中。
+
+本插件现有 `options.agentID` 仅设置 `X-Magpie-Agent`，不会修改真实 `User-Agent` 或生成 Agent 专用 Key。参见下方的 [Agent 标签与原生归属](#agent-标签与原生归属)。要恢复正确的调用方显示，应检查正在使用的连接、Key 和转发头，而不是继续替换提示词中的品牌名。
+
 插件图标沿用 [Magpie 官网的小尺寸喜鹊 SVG](https://usemagpie.ai/img/magpie-small.svg)，保留原始轮廓，透明底、`currentColor` 单色渲染。源文件为 [`icon.svg`](icon.svg)，`package.json` 顶层 `icon` 内嵌同一图形的 data URI，不依赖远程图片。
 
 ## 它解决什么问题
@@ -57,7 +105,7 @@ OpenCode V2
 
 ```jsonc
 {
-    "plugins": ["opencode-magpie-plugin@0.3.2"]
+    "plugins": ["opencode-magpie-plugin@0.7.0"]
 }
 ```
 
