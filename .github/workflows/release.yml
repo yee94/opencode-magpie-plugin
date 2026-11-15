@@ -2,14 +2,14 @@ name: Release
 
 on:
   push:
-    tags: ['v*', 'opencode-magpie-plugin/v*', 'claude-opencode-adapter/v*']
+    tags: ['v*', 'opencode-magpie-plugin/v*', 'magpie-claude-opencode-adapter/v*']
   workflow_dispatch:
     inputs:
       package:
         description: Package to publish
         type: choice
         default: all
-        options: [all, opencode-magpie-plugin, claude-opencode-adapter]
+        options: [all, opencode-magpie-plugin, magpie-claude-opencode-adapter]
 
 permissions:
   contents: read

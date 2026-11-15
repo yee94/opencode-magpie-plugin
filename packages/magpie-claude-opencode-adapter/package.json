@@ -1,5 +1,5 @@
 {
-  "name": "claude-opencode-adapter",
+  "name": "magpie-claude-opencode-adapter",
   "version": "0.1.0",
   "type": "module",
   "description": "OpenCode prompt adapter for Magpie's Claude Code subscription channel",
@@ -30,9 +30,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yee94/opencode-magpie-plugin.git",
-    "directory": "packages/claude-opencode-adapter"
+    "directory": "packages/magpie-claude-opencode-adapter"
   },
-  "homepage": "https://github.com/yee94/opencode-magpie-plugin/tree/main/packages/claude-opencode-adapter#readme",
+  "homepage": "https://github.com/yee94/opencode-magpie-plugin/tree/main/packages/magpie-claude-opencode-adapter#readme",
   "bugs": {
     "url": "https://github.com/yee94/opencode-magpie-plugin/issues"
   },

@@ -7,7 +7,7 @@ The root is a private pnpm workspace and is never published. The two public pack
 | Package | Directory | Check | Tag |
 | --- | --- | --- | --- |
 | `opencode-magpie-plugin` | `packages/opencode-magpie-plugin` | `pnpm check:opencode` | `opencode-magpie-plugin/v<version>` |
-| `claude-opencode-adapter` | `packages/claude-opencode-adapter` | `pnpm check:adapter` | `claude-opencode-adapter/v<version>` |
+| `magpie-claude-opencode-adapter` | `packages/magpie-claude-opencode-adapter` | `pnpm check:adapter` | `magpie-claude-opencode-adapter/v<version>` |
 
 Each package owns its manifest, version, README, runtime, tests and npm file list. Shared development dependencies and publishing utilities live at the private root. A change to one package does not require changing the other's version.
 
@@ -41,7 +41,7 @@ A token that publishes the OpenCode package may still return 403 for the adapter
    gh workflow run release.yml --ref main -f package=all
    ```
 
-   To publish one, use `-f package=opencode-magpie-plugin` or `-f package=claude-opencode-adapter`. Alternatively, push its annotated package version tag. A branch push only runs CI, not npm publishing.
+   To publish one, use `-f package=opencode-magpie-plugin` or `-f package=magpie-claude-opencode-adapter`. Alternatively, push its annotated package version tag. A branch push only runs CI, not npm publishing.
 5. Follow the exact run with `gh run watch <run-id> --exit-status`. For each package, verify the exact version and dist-tag via public `https://registry.npmjs.org/`, and inspect its GitHub Release.
 
 **Done:** each requested package's job is green; its public npm name/version/SHA-512 tarball integrity match the CI artifact; dependencies and optionalDependencies are empty; its intended dist-tag points to the expected version; its GitHub Release exists. Report both npm and GitHub URLs when releasing both. A pushed tag, successful build, accepted publish response, or one published package does not complete a two-package release.
