@@ -1,10 +1,12 @@
 # Claude OpenCode Adapter
 
-Magpie 网关中间件，使用 `onProvider` 处理 Claude 订阅桥接前的 Anthropic 请求。
-纯 JavaScript，无运行时依赖、网络调用或 Node API，可以直接交给 Magpie 的 moejs 加载。
+**针对 OpenCode 经 Magpie 使用 Claude Code 订阅时，TUI 请求被当作第三方 Agent 请求拒绝的问题。**
 
-这是独立 npm 包，不导入或依赖 `opencode-magpie-plugin`，也不会被它自动启用。
-本包只负责 Claude Code 订阅渠道对 OpenCode 请求的适配，不绑定任何第三方 UI 品牌；模型发现和其他 provider 的处理不属于本包。
+Magpie 用真实 Claude Code 承接订阅请求，但在原生提示词后加入 OpenCode 指令，仍可能触发第三方应用拒绝并回退到 `claude -p`。本适配器尝试在不改工具桥接的情况下，调整这部分指令的位置和固定身份句。
+
+它是安装在 Magpie 端的独立中间件，不是 OpenCode 的登录插件，也不是另一个模型网关。**只处理 Claude Code 订阅渠道**，不会因为其他 provider 提供 Claude 模型就改写其请求。
+
+**当前状态：实验性，尚未完成首次 npm 发布。**请先使用下面的源码安装方式。它不保证拒绝一定消失、始终保持 TUI 或节省某个比例的订阅额度；验证范围见文末。
 
 ## 行为
 
@@ -19,22 +21,23 @@ Magpie 网关中间件，使用 `onProvider` 处理 Claude 订阅桥接前的 An
 
 ## 安装到服务器
 
-推荐从公开 npm 安装。在实际运行 Claude 订阅桥接的服务器上执行：
+在实际运行 Claude Code 订阅桥接的服务器上安装，不是在 OpenCode 客户端安装。
+当前先将本目录复制到服务器，以单文件方式加载：
 
 ```sh
-magpie plugin add npm:claude-opencode-adapter@0.1.0
-magpie plugin options claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add /absolute/path/to/claude-opencode-adapter/adapter.middleware.js
+magpie plugin options /absolute/path/to/claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 这是 Magpie 插件，不要放进 OpenCode 的 `plugins` 数组。OpenCode 端的模型发现仍由独立的 `opencode-magpie-plugin` 负责；adapter 不处理登录、OAuth、模型发现或服务启动。
 
 若已安装此前测试用的 `*.middleware.js`，先用 `magpie plugin off <旧文件完整路径>` 停用，或用 `magpie plugin rm <旧文件完整路径>` 移除，然后安装 npm 包。
 
-也可将本目录复制到目标服务器，以单文件方式安装：
+首次 npm 发布完成后，可改用包安装：
 
 ```sh
-magpie plugin add /absolute/path/to/claude-opencode-adapter/adapter.middleware.js
-magpie plugin options /absolute/path/to/claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add npm:claude-opencode-adapter@0.1.0
+magpie plugin options claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 单文件安装使用完整路径作为插件标识，设置选项、启停和删除时使用同一路径；

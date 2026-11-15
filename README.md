@@ -1,43 +1,55 @@
-# Magpie Plugins Monorepo
+# Magpie for OpenCode
 
 [![CI](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/opencode-magpie-plugin)](https://www.npmjs.com/package/opencode-magpie-plugin)
 
-两个独立 npm 包，分别处理 OpenCode 客户端接入和 Magpie 服务端请求适配。
-根目录是 **private workspace**，只放共享工具、测试与发布任务，不发布 npm 包。
+**让 Magpie 里的模型在 OpenCode 中更好用。**
 
-| Package | 安装位置 | 职责与文档 |
+[Magpie](https://usemagpie.ai/) 负责连接各家服务、管理账号和转发请求；[OpenCode](https://opencode.ai/) 负责对话、代码和工具执行。
+这个项目围绕两者一起使用时遇到的问题，补齐默认／官方接入方式之外的模型呈现、价格信息和特定渠道兼容需求。它不是另一个模型网关，也不接管 Magpie 的账号登录。
+
+## 它解决什么问题？
+
+### 模型接上了，但在 OpenCode 里还不好用
+
+在 Magpie 里添加服务、调整路由组之后，你希望 OpenCode 跟着更新，而不是再手工维护一份模型配置。模型多了以后，也需要看清它来自哪个服务、有什么能力、费用如何估算。
+
+**`opencode-magpie-plugin` 解决 OpenCode 这一侧的接入和呈现：**
+
+- **模型列表自动更新**：从 Magpie 发现模型，启动后每 30 秒刷新，不必逐个填写 `providers.models`。
+- **服务和路由组分得清**：Cursor、WorkBuddy、路由组分别展示；远程网关中的嵌套来源也能保留层级。
+- **能力和价格带进来**：传递上下文限制、思考档位和 Fast 能力，补充输入、输出及缓存价格，用于 OpenCode 的费用估算。
+- **本机、远程都能接**：支持本机网关启动和远程 API 地址，不需要把上游服务的登录凭据搬到 OpenCode。
+- **生图单独用工具**：提供 `image_list`、`image_gen`，而不是把图片模型混进聊天模型列表。
+
+### Claude 订阅能连上，但 OpenCode 的请求被拒绝
+
+另一类问题不在模型列表，而在请求本身：OpenCode 经 Magpie 使用 **Claude Code 订阅渠道**时，附加的第三方 Agent 指令可能被拒绝，Magpie 随后会从 TUI 回退到 `claude -p`。
+
+**`claude-opencode-adapter` 是针对这条链路的实验性适配器：**
+
+- 在 Magpie 将请求交给 Claude Code 前，把 OpenCode 的 system 指令移到首条 user 消息。
+- 将固定的 OpenCode 身份句改为中性编码助手描述，不替换成其他产品品牌。
+- 保留工具定义、工具调用和结果回传，继续使用 Magpie 已有的 MCP 桥接。
+- **只处理 Claude Code 订阅渠道**。Anthropic API Key、Cursor / WorkBuddy 上的 Claude 模型和其他 provider 原样通过。
+
+它用于验证和改善这类兼容问题，**不是“保证绕过拒绝”或“保证节省额度”的工具**。指令位置变化会影响优先级和缓存，是否保持 TUI 必须看完整请求日志。
+
+## 我该装哪个？
+
+| 你的需求 | 使用哪个包 | 装在哪里 |
 | --- | --- | --- |
-| [`opencode-magpie-plugin`](https://www.npmjs.com/package/opencode-magpie-plugin) | OpenCode 服务所在机器 | [模型发现、价格与网关连接](packages/opencode-magpie-plugin/README.md) |
-| [`claude-opencode-adapter`](https://www.npmjs.com/package/claude-opencode-adapter) | Claude Code 订阅桥接所在的 Magpie 服务器 | [仅 Claude Code 订阅渠道的 OpenCode 请求适配](packages/claude-opencode-adapter/README.md) |
+| 在 OpenCode 中使用 Magpie 的模型，自动同步列表、分组、能力和价格 | [`opencode-magpie-plugin`](packages/opencode-magpie-plugin/README.md) | 运行 OpenCode 服务的机器 |
+| 排查 OpenCode → Magpie → Claude Code 订阅的 TUI 拒绝／回退问题 | [`claude-opencode-adapter`](packages/claude-opencode-adapter/README.md) | 实际运行 Claude Code 订阅桥接的 Magpie 机器 |
 
-两包互不依赖，分别拥有 manifest、源码、测试、打包文件清单和版本；均无运行时 npm 依赖。安装其中一个不会自动安装或启用另一个。
+**普通接入只装第一个。** 两个包独立安装，第二个不会随第一个自动启用。
+如果 Magpie 自带的接入已经满足你的使用需求，也不必额外安装本项目。
 
-## 结构
+## 先把 Magpie 模型用起来
 
-```text
-packages/
-  opencode-magpie-plugin/
-    src/                  # 模型发现、连接、价格和工具
-    tests/
-    docs/
-    tsconfig.json
-    tsdown.config.ts
-    package.json
-    README.md
-  claude-opencode-adapter/
-    adapter.middleware.js # Magpie onProvider 中间件
-    adapter.test.js
-    package.json
-    README.md
-scripts/                  # 共享发布校验及其测试
-docs/releasing.md
-pnpm-workspace.yaml
-package.json              # private，仅共享开发依赖和任务
-```
+前提：已在 Magpie 中配置好需要的服务，且 OpenCode 服务能访问它的网关。本插件面向 **OpenCode V2**。
 
-## 安装
-
-OpenCode 的 `opencode.jsonc`：
+在 OpenCode 的 `opencode.jsonc` 中加入：
 
 ```jsonc
 {
@@ -46,47 +58,42 @@ OpenCode 的 `opencode.jsonc`：
 }
 ```
 
-可选 adapter 安装在 Magpie 服务器端，不放进 OpenCode 的插件列表：
+加载插件后，在 `/plugins` 查看 `magpie.providers`，再到 `/models` 选择对应服务或路由组的模型。
 
-```sh
-magpie plugin add npm:claude-opencode-adapter@0.1.0
-magpie plugin options claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+- [远程网关、分组和排序配置](packages/opencode-magpie-plugin/README.md)
+- [模型价格与费用估算说明](packages/opencode-magpie-plugin/README.md#价格与费用统计)
+- [Claude Code 订阅适配器：安装、匹配范围和 TUI 诊断](packages/claude-opencode-adapter/README.md)
+
+**发布状态：**`opencode-magpie-plugin` 已发布到 [npm](https://www.npmjs.com/package/opencode-magpie-plugin)。
+`claude-opencode-adapter` 尚未完成首次 npm 发布，目前请按其文档从源码安装；它仍处于实验验证阶段。
+
+## 和 Magpie 自带接入是什么关系？
+
+Magpie 已经提供 OpenCode 接入。本项目不是用来替代它，而是把实际使用中需要的扩展做成可独立安装的插件：
+
+- **Magpie 继续负责**账号、服务、路由、协议转换和 Claude Code 进程。
+- **OpenCode 插件负责**动态读取这些能力，并控制它们在 OpenCode 中如何展示和使用。
+- **Claude 适配器只负责**特定订阅渠道的请求改写，不给其他 provider 加上同一套处理。
+
+各版本自带接入的能力会变化；是否需要这些扩展，应以你的实际需求为准。这个仓库是独立集成项目，不是 Magpie 或 OpenCode 官方插件。
+
+---
+
+## 参与开发
+
+仓库采用 pnpm monorepo；根目录仅放共享工具，不发布业务包：
+
+```text
+packages/opencode-magpie-plugin/   # OpenCode 模型接入插件
+packages/claude-opencode-adapter/  # Claude Code 订阅渠道适配器
 ```
-
-**Adapter 只匹配 Claude Code 订阅渠道**：`ctx.provider.account === "claude"` 且协议为 Anthropic。Anthropic API Key、Cursor / WorkBuddy 上的 Claude 模型、Codex 和其他 provider 不会触发；不能只按模型名称判断。
-链式 Magpie 的 `ctx.agent` 可能是 `magpie`，需按 [adapter 文档](packages/claude-opencode-adapter/README.md) 显式配置匹配范围。
-
-它只移动调用方指令，不复制整份提示词，也不改工具或认证信息。角色变化可能影响指令优先级和缓存；不保证一定走 TUI、没有 `-p` 回退或节省某个比例的额度。
-
-## 开发与 CI
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check                 # 共享校验及两个包各自的完整检查
-pnpm check:opencode        # 只检查 OpenCode 包
-pnpm check:adapter         # 只检查 adapter
-pnpm build                 # 构建需要构建的包；adapter 是纯 JS
+pnpm check                 # 两包及共享工具的完整检查
+pnpm check:opencode        # 只检查模型接入插件
+pnpm check:adapter         # 只检查订阅适配器
 ```
 
-也可以使用 `pnpm --filter <包名> check` 在包边界独立运行。共享开发依赖和锁文件在根目录，运行时代码留在各自包内。
-CI 分别检查两个包及共享发布工具；所有测试使用 Vitest，本机检查不调用模型，真实模型联调在获准的 SSH 服务器进行。
-
-## CD：发布两个独立 npm 产物
-
-在 GitHub Actions 的 **Release → Run workflow** 中选择 `all`，会读取两个包各自的版本，分别检查、打包、发布、核验 npm 并创建各自的 GitHub Release。
-两个发布任务独立执行，一个包的权限或发布错误不会取消另一个包。
-
-也可单独选择包，或推送其版本标签：
-
-- `opencode-magpie-plugin/v<版本>`：仅发布 OpenCode 包；旧 `v<版本>` 标签仍兼容。
-- `claude-opencode-adapter/v<版本>`：仅发布 adapter。
-
-发布过的版本不可覆盖；改过的包需要升级自己的版本，未改包只在产物完全一致时跳过上传。
-仓库 Secret `NPM_TOKEN` 必须有对应包的发布权限，首次创建新包也需要授权。**已有 OpenCode 包的发布权限不代表能创建 adapter。**
-详细过程与完成标准见 [发布指南](docs/releasing.md)。
-
-## 为什么路由图显示 `magpie`，不是 OpenCode？
-
-路由图名称来自 Gateway Key、`User-Agent` 和转发元数据，不来自提示词。Adapter 不修改这些信息；将身份句中性化不会给路由图改名。
-尤其在 Magpie → Magpie 的链路上，接收端可能识别为 `magpie`，而中间件 `ctx.agent` 与记录的原始转发来源也可能不同。
-排查应检查实际连接和来源标签，不能仅凭显示名称判断 adapter 是否生效。客户端标签配置见 [Agent 标签与原生归属](packages/opencode-magpie-plugin/README.md#agent-标签与原生归属)。
+两包分别拥有源码、测试、版本和打包清单，互不依赖，均无运行时 npm 依赖。CI 分包检查；CD 可一次选择 `all` 发布两个独立产物，也可单独发布，失败互不取消。
+发布、凭据要求和恢复步骤见 [维护者发布指南](docs/releasing.md)。

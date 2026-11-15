@@ -4,24 +4,9 @@
 [![CI](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/yee94/opencode-magpie-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**在 OpenCode V2 中动态使用 Magpie 的 Cursor、WorkBuddy 等服务，无需手写模型配置。**
+**把 Magpie 里的模型、路由组和生图能力带进 OpenCode V2，不再手工维护另一份模型配置。**
 
-An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gateways. It discovers providers and models, supplies built-in token pricing, and starts an installed local gateway when needed. Zero runtime npm dependencies; no private registry or company-scoped packages required.
-
-## 包边界
-
-本包只负责 OpenCode 侧的模型发现、价格、工具和网关连接，不包含 Claude Code 订阅渠道的提示词改写。
-可选的 [`claude-opencode-adapter`](../claude-opencode-adapter/README.md) 是另一个独立 npm 包，安装在 Magpie 服务器端，不由本包依赖或自动启用。完整仓库结构见 [monorepo README](../../README.md)。
-
-### 为什么 Magpie 路由图显示 `magpie`，不是 OpenCode？
-
-**提示词里的身份和网关的调用方标签是两回事。** Adapter 不改请求头或认证信息，不能把路由图改名。
-
-Magpie 的调用方识别取决于 Agent 专用 Gateway Key、`User-Agent` 和转发元数据；在 Magpie → Magpie 的链路上，接收端也可能识别为 `magpie`。`X-Magpie-Agent` 是标签，不能无条件覆盖直接调用者的身份。特别是 `ctx.agent` 与路由图记录的转发来源不一定相同，不能只凭显示名推断插件是否命中。
-
-本插件现有 `options.agentID` 仅设置 `X-Magpie-Agent`，不会修改真实 `User-Agent` 或生成 Agent 专用 Key。参见下方的 [Agent 标签与原生归属](#agent-标签与原生归属)。要恢复正确的调用方显示，应检查正在使用的连接、Key 和转发头，而不是继续替换提示词中的品牌名。
-
-插件图标沿用 [Magpie 官网的小尺寸喜鹊 SVG](https://usemagpie.ai/img/magpie-small.svg)，保留原始轮廓，透明底、`currentColor` 单色渲染。源文件为 [`icon.svg`](icon.svg)，`package.json` 顶层 `icon` 内嵌同一图形的 data URI，不依赖远程图片。
+你已经用 Magpie 管理了 Cursor、WorkBuddy 或远程网关，希望 OpenCode 里的列表能跟着更新，也能看清模型来源、能力和参考价格。这个插件负责这一侧的接入和呈现；账号登录、路由和请求转发仍交给 Magpie。
 
 ## 它解决什么问题
 
@@ -46,6 +31,8 @@ OpenCode V2
 - 登录和服务凭据由 Magpie 管理，插件不需要复制上游 token。
 
 这不是一个绕过 Magpie 的社区插件宿主：**推理请求仍经过所配置的 Magpie 网关**。
+
+如果你遇到的是 Claude Code 订阅渠道的 TUI 请求被拒绝，请看另一个独立包 [`claude-opencode-adapter`](../claude-opencode-adapter/README.md)。本包不包含那段提示词改写，也不会自动启用它。
 
 ## 前置条件
 
@@ -382,6 +369,14 @@ pnpm check
 
 ## 排查
 
+### 为什么 Magpie 路由图显示 `magpie`，不是 OpenCode？
+
+路由图读取的是调用方连接信息，不是提示词。Magpie 的来源识别取决于 Agent 专用 Gateway Key、`User-Agent` 和转发元数据；经过另一层 Magpie 时，接收端可能识别为 `magpie`。中间件的 `ctx.agent` 与记录的原始转发来源也可能不同。
+
+本插件的 `options.agentID` 只设置 `X-Magpie-Agent`，不会修改真实 `User-Agent` 或生成 Agent 专用 Key，也不能无条件覆盖直接调用方身份。应检查正在使用的连接和转发标签，不能通过修改提示词来给路由图改名。详见 [Agent 标签与原生归属](#agent-标签与原生归属)。
+
+### 其他问题
+
 | 现象 | 检查项 |
 | --- | --- |
 | `/plugins` 没有 `magpie.providers` | 全局配置是否被当前服务读取；file 模式是否填写 `dist` 目录并已构建；查看 OpenCode 日志 |
@@ -418,6 +413,8 @@ pnpm --dir packages/opencode-magpie-plugin pack
 只发布 `dist`、README 和许可证，**没有 runtime dependencies**。价格表变更时应更新相应测试，并在 release 说明价格来源与变化。
 
 ## 相关项目与许可证
+
+插件图标沿用 [Magpie 官网的小尺寸喜鹊 SVG](https://usemagpie.ai/img/magpie-small.svg)。源文件为 [`icon.svg`](icon.svg)，`package.json` 的 `icon` 内嵌同一图形，不依赖远程图片。
 
 - [Magpie](https://usemagpie.ai/)：账号、网关、路由和上游转接。
 - [OpenCode V2 plugins](https://opencode.ai/v2/docs/build/plugins)：插件生命周期与动态 provider API。
