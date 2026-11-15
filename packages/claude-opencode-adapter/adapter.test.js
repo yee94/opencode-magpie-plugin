@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { onProvider } from './yuri.middleware.js';
+import { onProvider } from './adapter.middleware.js';
 
 const identity = 'You are an AI agent running in OpenCode, a coding agent harness.';
 const context = {
@@ -14,13 +14,15 @@ const request = () => ({
   messages: [{ role: 'user', content: 'Read the file.' }],
 });
 
-describe('Yuri gateway adapter', () => {
+describe('Claude Code / OpenCode adapter', () => {
   it('moves instructions and renames only the harness identity without mutating input', () => {
     const input = request();
     const snapshot = JSON.stringify(input);
     const output = onProvider(input, context);
     expect(output.system).toBeUndefined();
-    expect(output.messages[0].content[0].text).toContain('running in Yuri,');
+    expect(output.messages[0].content[0].text).toContain('You are an AI coding agent.');
+    expect(output.messages[0].content[0].text).not.toContain(identity);
+    expect(output.messages[0].content[0].text).not.toContain('Yuri');
     expect(output.messages[0].content[0].text).toContain(
       'Use /home/opencode and opencode.ai. Call opencode_tool.',
     );
@@ -49,7 +51,7 @@ describe('Yuri gateway adapter', () => {
   it('supports controlled system-placement and identity-only comparisons', () => {
     const input = request();
     const output = onProvider(input, { ...context, options: { placement: 'system' } });
-    expect(output.system).toContain('running in Yuri,');
+    expect(output.system).toContain('You are an AI coding agent.');
     expect(output.messages).toBe(input.messages);
     expect(
       onProvider(input, { ...context, options: { renameIdentity: false } }).messages[0].content[0]
@@ -62,10 +64,10 @@ describe('Yuri gateway adapter', () => {
     expect(onProvider(request(), ctx)).toBeUndefined();
     const output = onProvider(request(), {
       ...ctx,
-      options: { agents: ['opencode', 'yuri', 'magpie'] },
+      options: { agents: ['opencode', 'magpie'] },
     });
     expect(output.system).toBeUndefined();
-    expect(output.messages[0].content[0].text).toContain('running in Yuri,');
+    expect(output.messages[0].content[0].text).toContain('You are an AI coding agent.');
   });
 
   it.each([
@@ -94,6 +96,7 @@ describe('Yuri gateway adapter', () => {
 
   it.each([
     { ...context, agent: 'other' },
+    { ...context, agent: 'yuri' },
     { ...context, protocol: 'openai' },
     { ...context, provider: { id: 'claude' } },
     { ...context, provider: { account: 'codex' } },

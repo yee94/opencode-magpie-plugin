@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: ['opencode-magpie-plugin', 'magpie-yuri-adapter']
+        package: ['opencode-magpie-plugin', 'claude-opencode-adapter']
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

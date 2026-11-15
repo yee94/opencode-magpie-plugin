@@ -1,9 +1,9 @@
 const originalIdentity = 'You are an AI agent running in OpenCode, a coding agent harness.';
-const yuriIdentity = 'You are an AI agent running in Yuri, a coding agent harness.';
+const neutralIdentity = 'You are an AI coding agent.';
 
 export function onProvider(body, ctx) {
   const options = ctx.options ?? {};
-  const agents = options.agents ?? ['opencode', 'yuri'];
+  const agents = options.agents ?? ['opencode'];
   const placement = options.placement ?? 'user';
   if (
     options.enabled === false ||
@@ -32,7 +32,7 @@ export function onProvider(body, ctx) {
     text:
       options.renameIdentity === false
         ? block.text
-        : block.text.replace(originalIdentity, yuriIdentity),
+        : block.text.replace(originalIdentity, neutralIdentity),
   }));
   if (placement === 'system') {
     return { ...body, system: typeof system === 'string' ? renamed[0].text : renamed };

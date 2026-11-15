@@ -7,7 +7,7 @@ The root is a private pnpm workspace and is never published. The two public pack
 | Package | Directory | Check | Tag |
 | --- | --- | --- | --- |
 | `opencode-magpie-plugin` | `packages/opencode-magpie-plugin` | `pnpm check:opencode` | `opencode-magpie-plugin/v<version>` |
-| `magpie-yuri-adapter` | `packages/magpie-yuri-adapter` | `pnpm check:adapter` | `magpie-yuri-adapter/v<version>` |
+| `claude-opencode-adapter` | `packages/claude-opencode-adapter` | `pnpm check:adapter` | `claude-opencode-adapter/v<version>` |
 
 Each package owns its manifest, version, README, runtime, tests and npm file list. Shared development dependencies and publishing utilities live at the private root. A change to one package does not require changing the other's version.
 
@@ -34,14 +34,14 @@ A token that publishes the OpenCode package may still return 403 for the adapter
 
 1. Inspect `git status`, fetch `origin/main`, and inspect each selected package's current public npm versions. Preserve unrelated work. Never reuse a published version for changed content, including README or manifest changes.
 2. Change versions only in the selected `packages/*/package.json` files. Run `pnpm check` for the full workspace, or the selected package check plus `pnpm test:release` for a narrow release.
-3. Pack each selected package with `pnpm --dir packages/<name> pack --pack-destination <temporary-directory>` (pnpm 9's `pack` does not support `--filter`). Inspect the contents: the OpenCode package exports its built `dist` entries; the adapter exports `yuri.middleware.js`; neither tarball contains the other package or runtime dependencies.
+3. Pack each selected package with `pnpm --dir packages/<name> pack --pack-destination <temporary-directory>` (pnpm 9's `pack` does not support `--filter`). Inspect the contents: the OpenCode package exports its built `dist` entries; the adapter exports `adapter.middleware.js`; neither tarball contains the other package or runtime dependencies.
 4. Commit and push to `main`, then publish both packages with:
 
    ```sh
    gh workflow run release.yml --ref main -f package=all
    ```
 
-   To publish one, use `-f package=opencode-magpie-plugin` or `-f package=magpie-yuri-adapter`. Alternatively, push its annotated package version tag. A branch push only runs CI, not npm publishing.
+   To publish one, use `-f package=opencode-magpie-plugin` or `-f package=claude-opencode-adapter`. Alternatively, push its annotated package version tag. A branch push only runs CI, not npm publishing.
 5. Follow the exact run with `gh run watch <run-id> --exit-status`. For each package, verify the exact version and dist-tag via public `https://registry.npmjs.org/`, and inspect its GitHub Release.
 
 **Done:** each requested package's job is green; its public npm name/version/SHA-512 tarball integrity match the CI artifact; dependencies and optionalDependencies are empty; its intended dist-tag points to the expected version; its GitHub Release exists. Report both npm and GitHub URLs when releasing both. A pushed tag, successful build, accepted publish response, or one published package does not complete a two-package release.

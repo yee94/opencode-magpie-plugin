@@ -13,7 +13,7 @@
     "test": "pnpm test:release && pnpm -r test",
     "test:release": "vitest run scripts",
     "check:opencode": "pnpm --filter opencode-magpie-plugin check",
-    "check:adapter": "pnpm --filter magpie-yuri-adapter check",
+    "check:adapter": "pnpm --filter claude-opencode-adapter check",
     "check": "pnpm lint && pnpm test:release && pnpm -r check"
   },
   "devDependencies": {

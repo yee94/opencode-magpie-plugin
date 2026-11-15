@@ -11,7 +11,7 @@ An OpenCode V2 plugin for local or remote [Magpie](https://usemagpie.ai/) gatewa
 ## 包边界
 
 本包只负责 OpenCode 侧的模型发现、价格、工具和网关连接，不包含 Claude Code 订阅渠道的提示词改写。
-可选的 [`magpie-yuri-adapter`](../magpie-yuri-adapter/README.md) 是另一个独立 npm 包，安装在 Magpie 服务器端，不由本包依赖或自动启用。完整仓库结构见 [monorepo README](../../README.md)。
+可选的 [`claude-opencode-adapter`](../claude-opencode-adapter/README.md) 是另一个独立 npm 包，安装在 Magpie 服务器端，不由本包依赖或自动启用。完整仓库结构见 [monorepo README](../../README.md)。
 
 ### 为什么 Magpie 路由图显示 `magpie`，不是 OpenCode？
 

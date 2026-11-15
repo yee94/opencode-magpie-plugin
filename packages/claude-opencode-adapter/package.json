@@ -1,28 +1,27 @@
 {
-  "name": "magpie-yuri-adapter",
+  "name": "claude-opencode-adapter",
   "version": "0.1.0",
   "type": "module",
-  "description": "Yuri prompt placement middleware for the Magpie Claude subscription bridge",
-  "exports": "./yuri.middleware.js",
+  "description": "OpenCode prompt adapter for Magpie's Claude Code subscription channel",
+  "exports": "./adapter.middleware.js",
   "files": [
-    "yuri.middleware.js",
+    "adapter.middleware.js",
     "README.md"
   ],
   "magpie": {
-    "middleware": "./yuri.middleware.js",
+    "middleware": "./adapter.middleware.js",
     "options": {
       "agents": [
-        "opencode",
-        "yuri"
+        "opencode"
       ],
       "placement": "user",
       "renameIdentity": true
     }
   },
   "scripts": {
-    "lint": "biome check yuri.middleware.js adapter.test.js package.json",
+    "lint": "biome check adapter.middleware.js adapter.test.js package.json",
     "test": "vitest run adapter.test.js",
-    "check": "pnpm lint && pnpm test && node --check yuri.middleware.js"
+    "check": "pnpm lint && pnpm test && node --check adapter.middleware.js"
   },
   "publishConfig": {
     "access": "public",
@@ -31,15 +30,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yee94/opencode-magpie-plugin.git",
-    "directory": "packages/magpie-yuri-adapter"
+    "directory": "packages/claude-opencode-adapter"
   },
-  "homepage": "https://github.com/yee94/opencode-magpie-plugin/tree/main/packages/magpie-yuri-adapter#readme",
+  "homepage": "https://github.com/yee94/opencode-magpie-plugin/tree/main/packages/claude-opencode-adapter#readme",
   "bugs": {
     "url": "https://github.com/yee94/opencode-magpie-plugin/issues"
   },
   "keywords": [
     "magpie",
-    "yuri",
     "opencode",
     "middleware",
     "claude"
