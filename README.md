@@ -65,7 +65,7 @@
 - [Claude Code 订阅适配器：安装、匹配范围和 TUI 诊断](packages/magpie-claude-opencode-adapter/README.md)
 
 **发布状态：**`opencode-magpie-plugin` 已发布到 [npm](https://www.npmjs.com/package/opencode-magpie-plugin)。
-`magpie-claude-opencode-adapter` 尚未完成首次 npm 发布，目前请按其文档从源码安装；它仍处于实验验证阶段。
+`magpie-claude-opencode-adapter` 已发布到 npm，请按其文档安装 `0.1.1` 或更新版本；它仍处于实验验证阶段。
 
 ## 和 Magpie 自带接入是什么关系？
 

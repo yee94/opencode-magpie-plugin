@@ -1,9 +1,8 @@
 {
   "name": "magpie-claude-opencode-adapter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "OpenCode prompt adapter for Magpie's Claude Code subscription channel",
-  "exports": "./adapter.middleware.js",
   "files": [
     "adapter.middleware.js",
     "README.md"

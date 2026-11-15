@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { onProvider } from './adapter.middleware.js';
 
@@ -15,6 +16,13 @@ const request = () => ({
 });
 
 describe('Claude Code / OpenCode adapter', () => {
+  it('declares a middleware-only package so Magpie does not initialize onProvider as a plugin', () => {
+    const manifest = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+    expect(manifest.magpie.middleware).toBe('./adapter.middleware.js');
+    expect(manifest).not.toHaveProperty('main');
+    expect(manifest).not.toHaveProperty('exports');
+  });
+
   it('moves instructions and renames only the harness identity without mutating input', () => {
     const input = request();
     const snapshot = JSON.stringify(input);

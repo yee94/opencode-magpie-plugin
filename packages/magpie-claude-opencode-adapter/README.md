@@ -6,7 +6,7 @@ Magpie 用真实 Claude Code 承接订阅请求，但在原生提示词后加入
 
 它是安装在 Magpie 端的独立中间件，不是 OpenCode 的登录插件，也不是另一个模型网关。**只处理 Claude Code 订阅渠道**，不会因为其他 provider 提供 Claude 模型就改写其请求。
 
-**当前状态：实验性，尚未完成首次 npm 发布。**请先使用下面的源码安装方式。它不保证拒绝一定消失、始终保持 TUI 或节省某个比例的订阅额度；验证范围见文末。
+**当前状态：实验性，已发布到 npm。**请使用 `0.1.1` 或更新版本；`0.1.0` 的入口声明会导致 Magpie 误按 OpenCode 插件加载。本包不保证拒绝一定消失、始终保持 TUI 或节省某个比例的订阅额度；验证范围见文末。
 
 ## 行为
 
@@ -22,22 +22,22 @@ Magpie 用真实 Claude Code 承接订阅请求，但在原生提示词后加入
 ## 安装到服务器
 
 在实际运行 Claude Code 订阅桥接的服务器上安装，不是在 OpenCode 客户端安装。
-当前先将本目录复制到服务器，以单文件方式加载：
+推荐使用 npm 包：
 
 ```sh
-magpie plugin add /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js
-magpie plugin options /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add npm:magpie-claude-opencode-adapter@0.1.1
+magpie plugin options magpie-claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 这是 Magpie 插件，不要放进 OpenCode 的 `plugins` 数组。OpenCode 端的模型发现仍由独立的 `opencode-magpie-plugin` 负责；adapter 不处理登录、OAuth、模型发现或服务启动。
 
-若已安装此前测试用的 `*.middleware.js`，先用 `magpie plugin off <旧文件完整路径>` 停用，或用 `magpie plugin rm <旧文件完整路径>` 移除，然后安装 npm 包。
+若已安装此前测试用的 `*.middleware.js`，先安装 npm 包、迁移完整选项并确认加载成功，再用 `magpie plugin off <旧文件完整路径>` 停用旧版。保留旧文件作为回滚材料，避免两份中间件长期同时启用。
 
-首次 npm 发布完成后，可改用包安装：
+也可将本目录复制到服务器，以单文件方式加载：
 
 ```sh
-magpie plugin add npm:magpie-claude-opencode-adapter@0.1.0
-magpie plugin options magpie-claude-opencode-adapter '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
+magpie plugin add /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js
+magpie plugin options /absolute/path/to/magpie-claude-opencode-adapter/adapter.middleware.js '{"agents":["opencode"],"placement":"user","renameIdentity":true}'
 ```
 
 单文件安装使用完整路径作为插件标识，设置选项、启停和删除时使用同一路径；
@@ -110,6 +110,6 @@ Magpie 日志中：
 - `asked again as claude -p (#4503)` 或 `not the interactive mode`：发生回退。
 - 不能仅凭有一条 TUI 启动日志就判定整轮成功，需检查完整请求的后续日志。
 
-本包以 `magpie-claude-opencode-adapter/v<本包版本>` 标签独立发布，例如 `magpie-claude-opencode-adapter/v0.1.0`，也可在 Release 工作流单独选择本包。
+本包以 `magpie-claude-opencode-adapter/v<本包版本>` 标签独立发布，例如 `magpie-claude-opencode-adapter/v0.1.1`，也可在 Release 工作流单独选择本包。
 工作流选择 `all` 时会同时发布两个独立 npm 包，各自执行检查、打包、上传、校验和 GitHub Release 创建。
 根目录是 private workspace，不再作为业务包发布。详见 [发布流程](../../docs/releasing.md)。
