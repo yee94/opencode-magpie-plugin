@@ -71,6 +71,7 @@ describe('independent workspace release planning', () => {
         name: 'magpie-claude-opencode-adapter',
         directory: 'packages/magpie-claude-opencode-adapter',
       },
+      { name: 'magpie-remote-claude-code', directory: 'packages/magpie-remote-claude-code' },
     ]);
     expect(
       releasePackages('workflow_dispatch', 'main', 'magpie-claude-opencode-adapter'),

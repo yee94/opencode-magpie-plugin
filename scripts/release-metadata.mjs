@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 const packages = [
   { name: 'opencode-magpie-plugin', directory: 'packages/opencode-magpie-plugin' },
   { name: 'magpie-claude-opencode-adapter', directory: 'packages/magpie-claude-opencode-adapter' },
+  { name: 'magpie-remote-claude-code', directory: 'packages/magpie-remote-claude-code' },
 ];
 
 export const releasePackages = (event, ref, requested = 'all') => {

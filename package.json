@@ -14,6 +14,7 @@
     "test:release": "vitest run scripts",
     "check:opencode": "pnpm --filter opencode-magpie-plugin check",
     "check:adapter": "pnpm --filter magpie-claude-opencode-adapter check",
+    "check:remote": "pnpm --filter magpie-remote-claude-code check",
     "check": "pnpm lint && pnpm test:release && pnpm -r check"
   },
   "devDependencies": {

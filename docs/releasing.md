@@ -2,12 +2,13 @@
 
 ## Package boundaries
 
-The root is a private pnpm workspace and is never published. The two public packages are independent and have no runtime npm dependencies:
+The root is a private pnpm workspace and is never published. The three public packages are independent and have no runtime npm dependencies:
 
 | Package | Directory | Check | Tag |
 | --- | --- | --- | --- |
 | `opencode-magpie-plugin` | `packages/opencode-magpie-plugin` | `pnpm check:opencode` | `opencode-magpie-plugin/v<version>` |
 | `magpie-claude-opencode-adapter` | `packages/magpie-claude-opencode-adapter` | `pnpm check:adapter` | `magpie-claude-opencode-adapter/v<version>` |
+| `magpie-remote-claude-code` | `packages/magpie-remote-claude-code` | `pnpm check:remote` | `magpie-remote-claude-code/v<version>` |
 
 Each package owns its manifest, version, README, runtime, tests and npm file list. Shared development dependencies and publishing utilities live at the private root. A change to one package does not require changing the other's version.
 

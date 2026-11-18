@@ -26,6 +26,8 @@ importers:
 
   packages/magpie-claude-opencode-adapter: {}
 
+  packages/magpie-remote-claude-code: {}
+
   packages/opencode-magpie-plugin: {}
 
 packages:
