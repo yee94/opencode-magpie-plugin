@@ -13,6 +13,8 @@ Magpie 自带的 Remote Magpie provider 没有账号，所以“窗口重置时�
 
 远端需开启“在局域网共享”。
 
+**预热界面兼容性：**「供应商 → Remote CC → 高级 → 预热」里的紧凑控件、时间选择器和全局错峰设置，需要带 Remote CC 补丁的 Magpie（已验证 `0.1.4505+remotecc.1`）。npm 包不包含 Magpie 本体。未打补丁的官方 Magpie 只显示通用开关；单独升级 npm 包不会增加这些控件。
+
 ## 能力
 
 - **转发请求**：模型列表读自远端 `/v1/models`（只保留 Claude 模型），请求发到远端的 Anthropic Messages API。
