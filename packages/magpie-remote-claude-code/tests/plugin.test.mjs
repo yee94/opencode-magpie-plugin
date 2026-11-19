@@ -1,4 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { _internal, MagpieRemoteClaudeCodePlugin } from '../index.mjs';
 import { rootOf } from '../src/remote.mjs';
@@ -31,8 +34,14 @@ describe('manifest', () => {
     expect(manifest.main).toBe('./index.mjs');
   });
 
-  it('does not register a sidebar page for warm-up settings', () => {
-    expect(manifest.magpie.page).toBeUndefined();
+  it('packages the settings page and registers a provider menu action', () => {
+    expect(manifest.files).toContain('page');
+    expect(manifest.magpie.actions).toContainEqual(
+      expect.objectContaining({ id: 'remote-cc-warmup', menu: 'provider' }),
+    );
+    const html = readFileSync(new URL(`../${manifest.magpie.page.file}`, import.meta.url), 'utf8');
+    expect(html).toContain('_magpie/bridge.js');
+    expect(html).toContain('id="gap"');
     expect(manifest.magpie.options.warmAts).toEqual(['06:00']);
   });
 });
@@ -243,51 +252,60 @@ describe('plugin hooks', () => {
     expect(sent[0].headers['x-magpie-account']).toBe('a%40example.com');
   });
 
-  it('warms signed-in accounts at separate times without prior chat or usage', async () => {
+  it('warms official Magpie’s saved accounts at separate times without prior chat or usage', async () => {
     let now = new Date(2026, 10, 18, 6, 0).getTime();
     const second = { ...auth, metadata: { url: 'http://other:3425' } };
     const sent = [];
-    const hooks = _internal.createPlugin({
-      now: () => now,
-      magpie: {
-        remoteCCAccounts: () => [
-          ['remote-claude-code', auth],
-          ['remote-claude-code#b', second],
-        ],
-      },
-      options: {
-        warmMode: 'off',
-        warmDaily: true,
-        warmAts: ['06:00'],
-        warmModel: 'claude-haiku',
-      },
-      fetchImpl: async (url, init) => {
-        if (url.endsWith('/v1/messages')) {
-          sent.push([new URL(url).hostname, init.headers['x-magpie-account']]);
-          return json({});
-        }
-        return json({
-          data: [
-            {
-              ...card,
-              user: new URL(url).hostname === 'other' ? 'b@example.com' : 'a@example.com',
-              windows: [{ name: '5 hours', used: 0 }],
-            },
-          ],
-        });
-      },
-    });
-    await hooks._tick();
-    expect(sent).toEqual([['remote', 'a%40example.com']]);
-    now += HOUR;
-    await hooks._tick();
-    expect(sent).toEqual([['remote', 'a%40example.com']]);
-    now += HOUR;
-    await hooks._tick();
-    expect(sent).toEqual([
-      ['remote', 'a%40example.com'],
-      ['other', 'b%40example.com'],
-    ]);
+    const directory = await mkdtemp(join(tmpdir(), 'remote-cc-auth-'));
+    try {
+      await writeFile(
+        join(directory, 'plugin-auth.json'),
+        JSON.stringify({
+          'remote-claude-code#b': second,
+          'remote-claude-code': auth,
+          unrelated: auth,
+        }),
+      );
+      const hooks = _internal.createPlugin({
+        now: () => now,
+        directory,
+        magpie: { account: () => 'remote-claude-code' },
+        options: {
+          warmMode: 'off',
+          warmDaily: true,
+          warmAts: ['06:00'],
+          warmModel: 'claude-haiku',
+        },
+        fetchImpl: async (url, init) => {
+          if (url.endsWith('/v1/messages')) {
+            sent.push([new URL(url).hostname, init.headers['x-magpie-account']]);
+            return json({});
+          }
+          return json({
+            data: [
+              {
+                ...card,
+                user: new URL(url).hostname === 'other' ? 'b@example.com' : 'a@example.com',
+                windows: [{ name: '5 hours', used: 0 }],
+              },
+            ],
+          });
+        },
+      });
+      await hooks._tick();
+      expect(sent).toEqual([['remote', 'a%40example.com']]);
+      now += HOUR;
+      await hooks._tick();
+      expect(sent).toEqual([['remote', 'a%40example.com']]);
+      now += HOUR;
+      await hooks._tick();
+      expect(sent).toEqual([
+        ['remote', 'a%40example.com'],
+        ['other', 'b%40example.com'],
+      ]);
+    } finally {
+      await rm(directory, { recursive: true });
+    }
   });
 
   it('sends one warm-up request when a switch is on and the window is idle', async () => {

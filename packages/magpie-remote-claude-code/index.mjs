@@ -4,6 +4,7 @@
 // the remote's Anthropic API; its Claude Code usage cards are read back as this
 // provider's usage, and the warm-up options start the remote's Claude windows.
 
+import { readAccounts } from './src/accounts.mjs';
 import { failureOf, networkError, quotaFailureOf, remoteRequest, rootOf } from './src/remote.mjs';
 import { pickCard, usageOf } from './src/usage.mjs';
 import { afterSend, emptyState, isIdle, plan, staggerTimes } from './src/warmup.mjs';
@@ -111,12 +112,21 @@ function numberOption(value, fallback, min, max) {
   return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
 }
 
-function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now = Date.now } = {}) {
+function createPlugin({
+  magpie,
+  directory,
+  options = {},
+  fetchImpl = globalThis.fetch,
+  now = Date.now,
+} = {}) {
   const switchOn = (key) => magpie?.option?.(ID, key) === true;
   const refreshEvery = () => numberOption(options?.refreshEvery, DEFAULT_REFRESH, 30, 3600) * 1000;
   const report = typeof magpie?.usage === 'function' ? (call) => magpie.usage(ID, call) : null;
 
   const accounts = new Map();
+  const listAccounts =
+    magpie?.remoteCCAccounts ??
+    (typeof magpie?.account === 'function' && directory ? () => readAccounts(directory, ID) : null);
   let timer;
 
   function remember(auth, id = magpie?.account?.(ID)) {
@@ -242,18 +252,13 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
     return !error;
   }
 
-  function scheduleOf(account) {
+  function scheduleOf(account, rank) {
     const own = options.warmAccounts?.[account.id];
     const mode =
       own?.warmMode ??
       options.warmMode ??
       (switchOn(RESET_ALL) ? 'all' : switchOn(RESET_WEEK) ? 'week' : 'off');
     const daily = own?.warmDaily ?? options.warmDaily ?? switchOn(DAILY);
-    const ids = magpie?.remoteCCAccounts?.() ?? [];
-    const rank = Math.max(
-      0,
-      ids.findIndex(([id]) => id === account.id),
-    );
     const given = options.warmGap;
     const gap = Number.isInteger(given) && given >= 0 && given < 1440 ? given : 120;
     const delay = (gap * rank) % 1440;
@@ -261,8 +266,7 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
     return { mode, daily, ats };
   }
 
-  async function warm(account, windows, card) {
-    const { mode, daily, ats } = scheduleOf(account);
+  async function warm(account, windows, card, { mode, daily, ats } = scheduleOf(account, 0)) {
     if (mode === 'off' && !daily) return [];
     const t = now();
     const p = plan({ windows, mode, ats, daily, state: account.state, now: t });
@@ -280,25 +284,35 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
     if (ticking) return;
     ticking = true;
     try {
-      if (magpie?.remoteCCAccounts) {
-        const current = magpie.remoteCCAccounts();
+      if (listAccounts) {
+        const current = await listAccounts();
+        if (!current) return;
         const ids = new Set(current.map(([id]) => id));
         for (const id of accounts.keys()) if (!ids.has(id)) accounts.delete(id);
-        for (const [id, auth] of current) remember(auth, id);
+        await Promise.all(
+          current.map(async ([id, auth], rank) => {
+            try {
+              const account = remember(auth, id);
+              if (account) await tickAccount(account, rank);
+            } catch {}
+          }),
+        );
+      } else {
+        await Promise.all([...accounts.values()].map((account) => tickAccount(account, 0)));
       }
-      await Promise.all([...accounts.values()].map(tickAccount));
     } finally {
       ticking = false;
     }
   }
 
-  async function tickAccount(account) {
-    const { mode, daily, ats } = scheduleOf(account);
+  async function tickAccount(account, rank) {
+    const schedule = scheduleOf(account, rank);
+    const { mode, daily, ats } = schedule;
     if (mode === 'off' && (!daily || !ats.length)) return;
     try {
       const card = await readCard(account);
       const usage = usageOf(card);
-      if (!usage.error && usage.windows.length) await warm(account, usage.windows, card);
+      if (!usage.error && usage.windows.length) await warm(account, usage.windows, card, schedule);
     } catch {}
   }
 
@@ -308,7 +322,7 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
     timer.unref?.();
   }
 
-  if (magpie?.remoteCCAccounts) start();
+  if (listAccounts) start();
 
   return {
     config: async (cfg) => {
@@ -405,7 +419,7 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
         try {
           const card = await readCard(account);
           const usage = usageOf(card);
-          if (!usage.error && usage.windows.length) {
+          if (!listAccounts && !usage.error && usage.windows.length) {
             warm(account, usage.windows, card).catch(() => {});
           }
           return { ...usage, signIn: usage.error ? 'kept' : 'renewed' };
@@ -429,8 +443,8 @@ function createPlugin({ magpie, options = {}, fetchImpl = globalThis.fetch, now 
   };
 }
 
-export const MagpieRemoteClaudeCodePlugin = async ({ magpie } = {}, options = {}) => {
-  const { _tick, ...hooks } = createPlugin({ magpie, options });
+export const MagpieRemoteClaudeCodePlugin = async ({ magpie, directory } = {}, options = {}) => {
+  const { _tick, ...hooks } = createPlugin({ magpie, directory, options });
   return hooks;
 };
 

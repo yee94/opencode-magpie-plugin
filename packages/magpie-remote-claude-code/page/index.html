@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Remote CC Warm-up</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="_magpie/bridge.js"></script>
+    <script src="settings.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Remote CC Warm-up</h1>
+      <form>
+        <fieldset disabled>
+          <label class="setting">
+            <span id="reset-label">Warm up on reset</span>
+            <select id="mode">
+              <option value="off">Off</option>
+              <option value="week">Weekly</option>
+              <option value="all">Weekly and 5-hour</option>
+            </select>
+          </label>
+          <label class="setting">
+            <span id="daily-label">Daily warm-up</span>
+            <input type="checkbox" id="daily">
+          </label>
+          <div class="setting">
+            <span id="times-label">Daily start times</span>
+            <div class="controls"><div id="times"></div><button id="add" type="button">+ Add time</button></div>
+          </div>
+          <label class="setting">
+            <span id="gap-label">Stagger interval</span>
+            <span class="controls"><input id="gap" type="number" min="0" max="1439" step="1" required> <span id="unit">min</span></span>
+          </label>
+          <p class="muted" id="hint">120 minutes gives 06:00, 08:00, 10:00. Enter 0 to disable staggering. Times follow the machine running Magpie.</p>
+          <button type="submit" id="save">Save settings</button>
+        </fieldset>
+      </form>
+      <p id="status" role="status"></p>
+    </main>
+  </body>
+</html>

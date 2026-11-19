@@ -1,0 +1,56 @@
+main {
+  max-width: 520px;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto;
+  align-items: center;
+  min-height: 36px;
+  gap: 8px;
+  border-bottom: 1px solid var(--magpie-line, ButtonBorder);
+}
+
+.controls,
+.time {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.time {
+  margin: 3px 0;
+}
+
+select,
+input:not([type="checkbox"]),
+button {
+  box-sizing: border-box;
+  min-height: 25px;
+  padding: 2px 7px;
+  border: 1px solid var(--magpie-line, ButtonBorder);
+  border-radius: 6px;
+  background: var(--magpie-card, Canvas);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+#gap {
+  width: 64px;
+}
+
+#hint {
+  margin: 8px 0 12px;
+}
+
+#save {
+  color: var(--magpie-accent, LinkText);
+}
