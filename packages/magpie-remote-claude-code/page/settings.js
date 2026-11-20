@@ -78,8 +78,9 @@ async function init() {
 }
 
 $('add').onclick = () => addTime().focus();
-form.onsubmit = async (event) => {
-  event.preventDefault();
+// Magpie's plugin iframe allows scripts, not form submissions.
+$('save').onclick = async () => {
+  if (fields.disabled || !form.reportValidity()) return;
   const warmAts = [
     ...new Set(Array.from($('times').querySelectorAll('input'), (i) => i.value)),
   ].sort();

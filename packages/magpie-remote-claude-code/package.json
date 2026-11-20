@@ -1,6 +1,6 @@
 {
   "name": "magpie-remote-claude-code",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Claude Code on another computer's Magpie, shown and managed as a Claude Code provider: the remote's Claude usage, automatic refresh and scheduled warm-up",
   "type": "module",
   "main": "./index.mjs",
