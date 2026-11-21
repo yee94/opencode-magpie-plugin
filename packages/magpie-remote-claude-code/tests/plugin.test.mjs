@@ -219,6 +219,52 @@ describe('plugin hooks', () => {
     });
   });
 
+  it('shows both Claude accounts for one gateway key and refreshes their exact identities', async () => {
+    const secondary = {
+      ...card,
+      provider: 'claude-personal',
+      user: 'b@example.com',
+      windows: [{ name: '7 days', used: 100, resetsAt: '2026-11-23T04:59:00Z' }],
+      routing: [{ span: 604800e9 }],
+    };
+    const fetchImpl = vi.fn(async (url, init) => {
+      if (init.method !== 'POST') {
+        return json({ data: [card, secondary, secondary, { ...secondary, provider: 'codex' }] });
+      }
+      return new URL(url).searchParams.get('user') === secondary.user
+        ? json({ error: { code: 'quota_forbidden' } }, 403)
+        : json({ data: [secondary, card] });
+    });
+    const hooks = _internal.createPlugin({ fetchImpl });
+    const usage = await hooks.auth.usage(async () => auth);
+    expect(usage).toMatchObject({ user: card.user, signIn: 'renewed' });
+    expect(usage.windows.map(({ name, aside }) => [name, aside])).toEqual([
+      ['a@example.com · 5 hours', false],
+      ['a@example.com · 7 days · Opus', false],
+      ['a@example.com · Usage credits', true],
+      ['b@example.com · 7 days', true],
+    ]);
+    expect(usage.windows.at(-1)).toMatchObject({
+      used: 100,
+      resetsAt: '2026-11-23T04:59:00Z',
+    });
+    await hooks.auth.usage(async () => auth);
+    expect(
+      fetchImpl.mock.calls
+        .filter(([, init]) => init.method === 'POST')
+        .map(([url]) => new URL(url).search),
+    ).toEqual([
+      '?provider=claude&user=a%40example.com',
+      '?provider=claude-personal&user=b%40example.com',
+    ]);
+
+    const pinned = _internal.createPlugin({ fetchImpl, options: { claudeUser: 'B@example.com' } });
+    expect(await pinned.auth.usage(async () => auth)).toMatchObject({
+      user: secondary.user,
+      windows: [{ name: '7 days', used: 100, aside: false }],
+    });
+  });
+
   it('does not send a warm-up when the gateway has no visible Claude card', async () => {
     const fetchImpl = vi.fn(async () => json({ data: [] }));
     const hooks = _internal.createPlugin({ fetchImpl, magpie: { option: () => true } });
@@ -238,7 +284,12 @@ describe('plugin hooks', () => {
         sent.push(init);
         return json({});
       }
-      return json({ data: [{ ...card, windows: [window] }] });
+      return json({
+        data: [
+          { ...card, windows: [window] },
+          { ...card, user: 'b@example.com', windows: [{ name: '5 hours', used: 0 }] },
+        ],
+      });
     };
     const hooks = _internal.createPlugin({
       fetchImpl,

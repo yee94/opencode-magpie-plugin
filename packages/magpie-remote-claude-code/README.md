@@ -19,7 +19,7 @@ Magpie 自带的 Remote Magpie provider 没有账号，所以“窗口重置时�
 
 - **转发请求**：模型列表读自远端 `/v1/models`（只保留 Claude 模型），请求发到远端的 Anthropic Messages API。
 - **多账号分流**：`claude/<模型 ID>` 和同名的裸 Claude ID 合并为一个模型；选中账号后仍按该网关返回的原始 ID 发送。不同版本保留为不同模型。
-- **用量**：读取远端的 Claude Code 额度卡（5 小时、7 天、分模型窗口、Usage credits），并按 `refreshEvery` 秒（默认 120）让远端重新读取一次。
+- **用量**：一个网关 Key 可在同一张 Remote CC 用量卡中按账号显示远端可见的 Claude Code 额度（5 小时、7 天、分模型窗口、Usage credits），并按 `refreshEvery` 秒（默认 120）让远端逐账号刷新。额外账号的额度仅供展示，不参与本地路由判断。
 - **预热**：在插件自带的预热设置页配置。
   - 窗口重置时预热：关闭、每周、每周和 5 小时。
   - 每日定时预热：可添加、修改或移除开始时间，默认 `06:00`。时间以运行 Magpie 的机器为准。
@@ -41,6 +41,6 @@ Magpie 自带的 Remote Magpie provider 没有账号，所以“窗口重置时�
 ## 注意
 
 - 预热和用量刷新由运行 Magpie 的这台电脑上的插件驱动；这台电脑关机则不执行。
-- 调度按 Magpie 中的 Remote CC 登录区分。若一个网关登录能看到多张 Claude 额度卡，插件仍只选择其中一张，可通过 `claudeUser` 指定。
+- 调度按 Magpie 中的 Remote CC 登录区分。单个网关登录即使显示多张 Claude 额度，也仍只对选中的账号预热，可通过 `claudeUser` 固定该账号并只显示它的额度。
 - 官方 Magpie 暂无后台账号枚举接口；插件在本机只读 `plugin-auth.json` 中的 Remote CC 登录，不修改登录文件，不把凭据交给设置页。
 - 多台电脑同时装本插件并开启预热会各自发送。

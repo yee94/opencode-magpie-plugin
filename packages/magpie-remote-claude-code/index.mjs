@@ -6,7 +6,7 @@
 
 import { readAccounts } from './src/accounts.mjs';
 import { failureOf, networkError, quotaFailureOf, remoteRequest, rootOf } from './src/remote.mjs';
-import { pickCard, usageOf } from './src/usage.mjs';
+import { claudeCards, pickCard, usageOf, usageWithAccounts } from './src/usage.mjs';
 import { afterSend, emptyState, isIdle, plan, staggerTimes } from './src/warmup.mjs';
 
 const ID = 'remote-claude-code';
@@ -135,13 +135,13 @@ function createPlugin({
     const slot = id ?? JSON.stringify([root, auth.key]);
     let account = accounts.get(slot);
     if (account?.root !== root || account?.key !== auth.key) {
-      account = { id, root, key: auth.key, state: emptyState(), refreshedAt: -Infinity };
+      account = { id, root, key: auth.key, state: emptyState(), refreshedAt: new Map() };
       accounts.set(slot, account);
     }
     return account;
   }
 
-  async function readCard(account) {
+  async function readCards(account, includeOthers = false) {
     const read = async (path, method) => {
       const res = await remoteRequest(fetchImpl, account.root, account.key, path, {
         method,
@@ -150,19 +150,37 @@ function createPlugin({
       if (!res.ok) throw Object.assign(new Error('read'), { failure: await quotaFailureOf(res) });
       return (await res.json())?.data;
     };
-    const card = pickCard(await read(CARDS_PATH, 'GET'), options?.claudeUser);
-    if (!card || now() - account.refreshedAt < refreshEvery()) return card;
-    account.refreshedAt = now();
-    const query = new URLSearchParams({ provider: card.provider });
-    if (card.user) query.set('user', card.user);
-    try {
-      const cards = await read(`${REFRESH_PATH}?${query}`, 'POST');
-      return cards?.find((c) => c.provider === card.provider && c.user === card.user) ?? card;
-    } catch (e) {
-      if (e.failure?.signIn === 'expired') throw e;
-      // A key can be allowed to see cards but not refresh them.
-      return card;
+    const cards = await read(CARDS_PATH, 'GET');
+    const primary = pickCard(cards, options?.claudeUser);
+    if (!primary) return [];
+    const identity = (card) => JSON.stringify([card.provider, card.user ?? '']);
+    const seen = new Set([identity(primary)]);
+    const selected = [primary];
+    if (includeOthers && !String(options?.claudeUser ?? '').trim()) {
+      for (const card of claudeCards(cards)) {
+        const id = identity(card);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        selected.push(card);
+      }
     }
+    return Promise.all(
+      selected.map(async (card, i) => {
+        const id = identity(card);
+        if (now() - (account.refreshedAt.get(id) ?? -Infinity) < refreshEvery()) return card;
+        account.refreshedAt.set(id, now());
+        const query = new URLSearchParams({ provider: card.provider });
+        if (card.user) query.set('user', card.user);
+        try {
+          const refreshed = await read(`${REFRESH_PATH}?${query}`, 'POST');
+          return refreshed?.find((c) => identity(c) === id) ?? card;
+        } catch (e) {
+          if (i === 0 && e.failure?.signIn === 'expired') throw e;
+          // A key can be allowed to see cards but not refresh them.
+          return card;
+        }
+      }),
+    );
   }
 
   async function warmModel(account) {
@@ -310,7 +328,7 @@ function createPlugin({
     const { mode, daily, ats } = schedule;
     if (mode === 'off' && (!daily || !ats.length)) return;
     try {
-      const card = await readCard(account);
+      const [card] = await readCards(account);
       const usage = usageOf(card);
       if (!usage.error && usage.windows.length) await warm(account, usage.windows, card, schedule);
     } catch {}
@@ -400,7 +418,7 @@ function createPlugin({
       async warmup(getAuth) {
         const account = remember(await getAuth());
         if (!account) throw new Error('Remote Magpie is not signed in');
-        const card = await readCard(account);
+        const [card] = await readCards(account);
         const usage = usageOf(card);
         if (usage.error) throw new Error(usage.error);
         const window = usage.windows.find((w) => w.name === '5 hours');
@@ -417,12 +435,13 @@ function createPlugin({
           return { error: 'Remote Magpie is not signed in', signIn: 'kept', windows: [] };
         start();
         try {
-          const card = await readCard(account);
-          const usage = usageOf(card);
-          if (!listAccounts && !usage.error && usage.windows.length) {
-            warm(account, usage.windows, card).catch(() => {});
+          const [card, ...others] = await readCards(account, true);
+          const primary = usageOf(card);
+          const usage = usageWithAccounts(card, others);
+          if (!listAccounts && !primary.error && primary.windows.length) {
+            warm(account, primary.windows, card).catch(() => {});
           }
-          return { ...usage, signIn: usage.error ? 'kept' : 'renewed' };
+          return { ...usage, signIn: primary.error ? 'kept' : 'renewed' };
         } catch (e) {
           if (e.failure) return { ...e.failure, windows: [], signIn: e.failure.signIn ?? 'kept' };
           return { error: networkError(e), windows: [], signIn: 'kept' };
