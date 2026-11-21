@@ -14,44 +14,17 @@ export function spanSeconds(window, routing) {
   return span > 1e9 ? Math.round(span / 1e9) : span;
 }
 
-export function claudeCards(cards) {
-  return (Array.isArray(cards) ? cards : []).filter(
+export function pickCard(cards, user = '') {
+  const wanted = String(user).trim().toLowerCase();
+  const claude = (Array.isArray(cards) ? cards : []).filter(
     (card) =>
       (card?.kind ?? 'subscription') === 'subscription' &&
       typeof card?.provider === 'string' &&
       card.provider &&
       (card.icon === 'claude' || /(^|\/)claude(?:-[-a-z0-9]+)?$/i.test(card.provider)),
   );
-}
-
-export function pickCard(cards, user = '') {
-  const wanted = String(user).trim().toLowerCase();
-  const claude = claudeCards(cards);
   if (wanted) return claude.find((card) => (card.user ?? '').toLowerCase() === wanted);
   return claude.find((card) => !card.error) ?? claude[0];
-}
-
-export function usageWithAccounts(primary, others) {
-  if (!others.length) return usageOf(primary);
-  const { error, windows, ...usage } = usageOf(primary);
-  const label = (card) => card.user || card.name || card.provider;
-  const rows = (card, { windows, error }, aside) => {
-    if (error || !windows.length) {
-      return [{ name: label(card), used: null, aside: true, display: error || 'No quota reading' }];
-    }
-    return windows.map((window) => ({
-      ...window,
-      name: `${label(card)} · ${window.name}`,
-      aside: aside || window.aside,
-    }));
-  };
-  return {
-    ...usage,
-    windows: [
-      ...rows(primary, { windows, error }, false),
-      ...others.flatMap((card) => rows(card, usageOf(card), true)),
-    ],
-  };
 }
 
 export function usageOf(card) {
